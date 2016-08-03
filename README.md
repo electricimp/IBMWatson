@@ -54,10 +54,11 @@ The *getDeviceType()* method requests the details for the device type specified.
 ##### Example Code:
 ```squirrel
 local typeID = "EnvTail";
+local typeInfo = {"id": typeID, "description" : "Electric Imp Environmental Sensor Tail"};
+
 watson.getDeviceType(typeID, function(error, response) {
+    // if device type doesn't exist create it
     if (error == watson.MISSING_RESOURCE_ERROR) {
-        // device type doesn't exist so create it
-        typeInfo <- {"id": typeID, "description" : "Electric Imp Environmental Sensor Tail"};
         watson.addDeviceType(typeInfo);
     }
 })

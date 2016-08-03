@@ -116,7 +116,7 @@ class IBMWatson {
             headers = {};
         }
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
-        local req = http.httpdelete(url, _createHeaders(headers), http.jsonencode(deviceInfo));
+        local req = http.httpdelete(url, _createHeaders(headers));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
