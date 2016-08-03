@@ -51,7 +51,7 @@ class IBMWatson {
         local req = http.post(url, _createHeaders(headers), http.jsonencode(data));
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -74,7 +74,7 @@ class IBMWatson {
         local req = http.post(url, _createHeaders(headers), http.jsonencode(deviceInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -97,7 +97,7 @@ class IBMWatson {
         local req = http.put(url, _createHeaders(headers), http.jsonencode(deviceInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -119,7 +119,7 @@ class IBMWatson {
         local req = http.httpdelete(url, _createHeaders(headers), http.jsonencode(deviceInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -141,7 +141,7 @@ class IBMWatson {
         local req = http.post(url, _createHeaders(headers), http.jsonencode(typeInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -162,7 +162,7 @@ class IBMWatson {
         local req = http.get(url, _createHeaders());
         req.sendasync(function(res) {
             _processResponse(res, cb);
-        });
+        }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -198,11 +198,9 @@ class IBMWatson {
      **************************************************************************************/
     function _processResponse(res, cb) {
         local status = res.statuscode;
-        local err = (status < 200 && status >= 300) ? _getError(status) : null;
-
+        local err = (status < 200 || status >= 300) ? _getError(status) : null;
         try {
-            if (res.body == "") res.body = {};
-            if (res.body != "") res.body = http.jsondecode(res.body);
+            res.body = (res.body == "") ? {} : http.jsondecode(res.body);
         } catch (e) {
             if (err != null) err = e;
         }

@@ -2,13 +2,13 @@
 
 The IBMWatson library allsows you to easily integrate your agent code with IBM Watson's IoT platform.
 
-**To add this library to your project, add** `#require "IBMWatson.class.nut:1.0.0"` **to the top of your agent code.**
-
-## Class Usage
-
 ### Watson Setup
 
 To use this library you will need to register an organization on the Watson IoT platform.  After registering you will be provided with a 6 character organization ID. You will also need to generate an API key.  When creating an API key you will be presented with a key and an authentication token. Please note the only time you have access to the authentication token is during this set up process.
+
+**To add this library to your project, add** `#require "IBMWatson.class.nut:1.0.0"` **to the top of your agent code.**
+
+## Class Usage
 
 ### Optional Callbacks
 
