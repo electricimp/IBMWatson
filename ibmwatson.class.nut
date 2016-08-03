@@ -2,6 +2,13 @@ class IBMWatson {
 
     static version = [1, 0, 0];
 
+    static INVALID_REQUEST_ERROR = "Error: Invalid Request";
+    static INVALID_AUTH_TOKEN_ERROR = "Error: Invalid Authentication Token";
+    static INVALID_AUTH_METHOD_ERROR = "Error: Invalid API Key or Authentication Method";
+    static MISSING_RESOURCE_ERROR = "Error: Resource does not exist";
+    static CONFLICT_ERROR = "Error: Conflict, resource already exists";
+    static UNEXPECTED_ERROR = "Error: Unexpected error";
+
     _apiKey = null;
     _authToken = null;
     _baseURL = null;
@@ -40,10 +47,11 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         local url = format("%s/application/types/%s/devices/%s/events/%s", _baseURL, typeID, deviceID, eventID);
         local req = http.post(url, _createHeaders(headers), http.jsonencode(data));
-        req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -61,11 +69,12 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         // add device id if not included (agent id)
         local url = format("%s/device/types/%s/devices", _baseURL, typeID);
         local req = http.post(url, _createHeaders(headers), http.jsonencode(deviceInfo));
-        req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -84,10 +93,11 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
         local req = http.put(url, _createHeaders(headers), http.jsonencode(deviceInfo));
-        req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -105,10 +115,11 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
         local req = http.httpdelete(url, _createHeaders(headers), http.jsonencode(deviceInfo));
-        req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -125,11 +136,12 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         if (!("classId" in typeInfo)) typeInfo.classId <- "Device";
         local url = format("%s/device/types", _baseURL);
         local req = http.post(url, _createHeaders(headers), http.jsonencode(typeInfo));
-        req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -146,10 +158,11 @@ class IBMWatson {
             cb = headers;
             headers = {};
         }
-        cb = _checkCallback(cb);
         local url = format("%s/device/types/%s", _baseURL, typeID);
         local req = http.get(url, _createHeaders());
-        local res = req.sendasync(cb);
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        });
     }
 
     /***************************************************************************************
@@ -177,23 +190,54 @@ class IBMWatson {
     }
 
     /***************************************************************************************
-     * _checkCallback
-     * Returns: a callback function
-     * Parameters:
-     *      cb : function or null - ensures cb is always a function
-     **************************************************************************************/
-    function _checkCallback(cb) {
-        return (cb == null || typof cb != "function") ? _defaultCallback : cb;
-    }
-
-    /***************************************************************************************
-     * _defaultCallback - does nothing with response but ensures that
-     *                               async requests always have a valid callback function
+     * _processResponse
      * Returns: null
      * Parameters:
-     *      res : table
+     *      res : the response object from Watson
+     *      cb : the callback function passed into the request or null
      **************************************************************************************/
-    function _defaultCallback(res) {
-        return;
+    function _processResponse(res, cb) {
+        local status = res.statuscode;
+        local err = (status < 200 && status >= 300) ? _getError(status) : null;
+
+        try {
+            if (res.body == "") res.body = {};
+            if (res.body != "") res.body = http.jsondecode(res.body);
+        } catch (e) {
+            if (err != null) err = e;
+        }
+
+        if (cb) cb(err, res);
+    }
+
+
+    /***************************************************************************************
+     * _getError
+     * Returns: error string
+     * Parameters:
+     *      statusCode : integer - status code from request
+     **************************************************************************************/
+    function _getError(statusCode) {
+        local err = null;
+        switch (statusCode) {
+            case 400:
+                err = INVALID_REQUEST_ERROR;
+                break;
+            case 401:
+                err = INVALID_AUTH_TOKEN_ERROR;
+                break;
+            case 403:
+                err = INVALID_AUTH_METHOD_ERROR
+                break;
+            case 404:
+                err = MISSING_RESOURCE_ERROR
+                break;
+            case 409:
+                err = CONFLICT_ERROR
+                break;
+            default:
+                err = UNEXPECTED_ERROR;
+        }
+        return err;
     }
 }
