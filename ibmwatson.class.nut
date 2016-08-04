@@ -123,6 +123,28 @@ class IBMWatson {
     }
 
     /***************************************************************************************
+     * getDevice
+     * Returns: null
+     * Parameters:
+     *      typeID : string - device type ID
+     *      deviceID : string - ID of device to delete
+     *      headers (optional) : table - additional headers to add to the http request
+     *      cb (optional) : function - function to execute when response received
+     **************************************************************************************/
+    function getDevice(typeID, deviceID, headers = {}, cb = null) {
+        // GET /device/types/{typeId}/devices/{deviceId}
+        if (typeof headers == "function") {
+            cb = headers;
+            headers = {};
+        }
+        local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
+        local req = http.get(url, _createHeaders(headers));
+        req.sendasync(function(res) {
+            _processResponse(res, cb);
+        }.bindenv(this));
+    }
+
+    /***************************************************************************************
      * addDeviceType
      * Returns: null
      * Parameters:

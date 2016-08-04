@@ -6,6 +6,9 @@ The IBMWatson library allsows you to easily integrate your agent code with IBM W
 
 To use this library you will need to register an organization on the Watson IoT platform.  After registering you will be provided with a 6 character organization ID. You will also need to generate an API key.  When creating an API key you will be presented with a key and an authentication token. Please note the only time you have access to the authentication token is during this set up process.
 
+https://docs.internetofthings.ibmcloud.com/getting_started/quickstart/index.html
+https://docs.internetofthings.ibmcloud.com/swagger/v0002.html#/
+
 **To add this library to your project, add** `#require "IBMWatson.class.nut:1.0.0"` **to the top of your agent code.**
 
 ## Class Usage
@@ -109,6 +112,20 @@ watson.addDevice(typeID, device, function(error, response) {
         return;
     }
     server.log(http.jsonencode(response.body));
+})
+```
+### getDevice(*typeID, deviceID[, headers][, cb]*)
+The *getDevice()* requests the details for the device specified.  This method takes two required parameters: the device's *typeID* and the *deviceID*, and two optional parameters: a *headers* table and a *cb* function.
+
+##### Example Code:
+```squirrel
+local typeID = "EnvTail";
+local deviceID = split(http.agenturl(), "/").pop();
+
+watson.getDevice(typeID, deviceID, function(error, response) {
+    if (error == watson.MISSING_RESOURCE_ERROR) {
+        watson.addDevice(typeID, {"deviceId": deviceID});
+    }
 })
 ```
 
