@@ -26,6 +26,7 @@ class IBMWatson {
         _apiKey = apiKey;
         _authToken = authToken;
 
+        // support for Watson sandbox
         local protocol = (orgID == "quickstart") ? "http" : "https";
         _baseURL = format("%s://%s.internetofthings.ibmcloud.com/api/%s", protocol, orgID, version);
     }
@@ -38,17 +39,17 @@ class IBMWatson {
      *      deviceID : string - ID of device that is posting data
      *      eventID : string - ID to identify event datastream
      *      data : table - event data (formatted: {"d" : "data here", "ts": "valid ISO8601 timestamp" })
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function postData(typeID, deviceID, eventID, data, headers = {}, cb = null) {
+    function postData(typeID, deviceID, eventID, data, httpHeaders = {}, cb = null) {
         // POST "device/types/${typeId}/devices/${deviceId}/events/${eventId}"
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         local url = format("%s/application/types/%s/devices/%s/events/%s", _baseURL, typeID, deviceID, eventID);
-        local req = http.post(url, _createHeaders(headers), http.jsonencode(data));
+        local req = http.post(url, _createHeaders(httpHeaders), http.jsonencode(data));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -60,18 +61,18 @@ class IBMWatson {
      * Parameters:
      *      typeID : string - device type ID
      *      deviceInfo : table - device info
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function addDevice(typeID, deviceInfo, headers = {}, cb = null) {
+    function addDevice(typeID, deviceInfo, httpHeaders = {}, cb = null) {
         // POST /device/types/{typeId}/devices
-         if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+         if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         // add device id if not included (agent id)
         local url = format("%s/device/types/%s/devices", _baseURL, typeID);
-        local req = http.post(url, _createHeaders(headers), http.jsonencode(deviceInfo));
+        local req = http.post(url, _createHeaders(httpHeaders), http.jsonencode(deviceInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -84,17 +85,17 @@ class IBMWatson {
      *      typeID : string - device type ID
      *      deviceID : string - ID of device to update
      *      deviceInfo : table - updated device info
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function updateDevice(typeID, deviceID, deviceInfo, headers = {}, cb = null) {
+    function updateDevice(typeID, deviceID, deviceInfo, httpHeaders = {}, cb = null) {
         // PUT /device/types/{typeId}/devices/{deviceId}
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
-        local req = http.put(url, _createHeaders(headers), http.jsonencode(deviceInfo));
+        local req = http.put(url, _createHeaders(httpHeaders), http.jsonencode(deviceInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -106,17 +107,17 @@ class IBMWatson {
      * Parameters:
      *      typeID : string - device type ID
      *      deviceID : string - ID of device to delete
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function deleteDevice(typeID, deviceID, headers = {}, cb = null) {
+    function deleteDevice(typeID, deviceID, httpHeaders = {}, cb = null) {
         // DELETE /device/types/{typeId}/devices/{deviceId}
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
-        local req = http.httpdelete(url, _createHeaders(headers));
+        local req = http.httpdelete(url, _createHeaders(httpHeaders));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -128,17 +129,17 @@ class IBMWatson {
      * Parameters:
      *      typeID : string - device type ID
      *      deviceID : string - ID of device to delete
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function getDevice(typeID, deviceID, headers = {}, cb = null) {
+    function getDevice(typeID, deviceID, httpHeaders = {}, cb = null) {
         // GET /device/types/{typeId}/devices/{deviceId}
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         local url = format("%s/device/types/%s/devices/%s", _baseURL, typeID, deviceID);
-        local req = http.get(url, _createHeaders(headers));
+        local req = http.get(url, _createHeaders(httpHeaders));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -149,18 +150,18 @@ class IBMWatson {
      * Returns: null
      * Parameters:
      *      typeInfo : table - device type info - must include "id"
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function addDeviceType(typeInfo, headers = {}, cb = null) {
+    function addDeviceType(typeInfo, httpHeaders = {}, cb = null) {
         // POST /device/types
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         if (!("classId" in typeInfo)) typeInfo.classId <- "Device";
         local url = format("%s/device/types", _baseURL);
-        local req = http.post(url, _createHeaders(headers), http.jsonencode(typeInfo));
+        local req = http.post(url, _createHeaders(httpHeaders), http.jsonencode(typeInfo));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -171,17 +172,17 @@ class IBMWatson {
      * Returns: null
      * Parameters:
      *      typeID : string - ID of device type
-     *      headers (optional) : table - additional headers to add to the http request
+     *      httpHeaders (optional) : table - additional http headers to add to the http request
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
-    function getDeviceType(typeID, headers = {}, cb = null) {
+    function getDeviceType(typeID, httpHeaders = {}, cb = null) {
         // GET /device/types/{typeId}
-        if (typeof headers == "function") {
-            cb = headers;
-            headers = {};
+        if (typeof httpHeaders == "function") {
+            cb = httpHeaders;
+            httpHeaders = {};
         }
         local url = format("%s/device/types/%s", _baseURL, typeID);
-        local req = http.get(url, _createHeaders());
+        local req = http.get(url, _createHeaders(httpHeaders));
         req.sendasync(function(res) {
             _processResponse(res, cb);
         }.bindenv(this));
@@ -224,7 +225,7 @@ class IBMWatson {
         try {
             res.body = (res.body == "") ? {} : http.jsondecode(res.body);
         } catch (e) {
-            if (err != null) err = e;
+            if (err == null) err = e;
         }
 
         if (cb) cb(err, res);

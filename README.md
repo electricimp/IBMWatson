@@ -31,8 +31,8 @@ watson <- IBMWatson(API_KEY, AUTH_TOKEN, ORG_ID);
 
 ## Class Methods
 
-### addDeviceType(*typeInfo[, headers][, cb]*)
-The *addDeviceType()* method creates a device type within your organization.  The device type is needed for all device interractions, for example creating a device, or posting device data.  This method takes one required parameter: a table with the info to create a device type, and two optional parameters: a *headers* table and a *cb* function.
+### addDeviceType(*typeInfo[, httpHeaders][, cb]*)
+The *addDeviceType()* method creates a device type within your organization.  The device type is needed for all device interractions, for example creating a device, or posting device data.  This method takes one required parameter: a table with the info to create a device type, and two optional parameters: a *httpHeaders* table and a *cb* function.
 
 #### typeInfo Table
 | key | value data type | Required | description |
@@ -51,8 +51,8 @@ watson.addDeviceType(typeInfo, function(error, response) {
 })
 ```
 
-### getDeviceType(*typeID[, headers][, cb]*)
-The *getDeviceType()* method requests the details for the device type specified.  This method takes one required parameter: the device's *typeID*, and two optional parameters: a *headers* table and a *cb* function.
+### getDeviceType(*typeID[, httpHeaders][, cb]*)
+The *getDeviceType()* method requests the details for the device type specified.  This method takes one required parameter: the device's *typeID*, and two optional parameters: a *httpHeaders* table and a *cb* function.
 
 ##### Example Code:
 ```squirrel
@@ -67,8 +67,8 @@ watson.getDeviceType(typeID, function(error, response) {
 })
 ```
 
-### addDevice(*typeID, device[, headers][, cb]*)
-The *addDevice()* method creates a device of the specified device type.  This method takes two required parameters: the device's *typeID* and a table containing information about the *device*, and two optional parameters: a *headers* table and a *cb* function.
+### addDevice(*typeID, device[, httpHeaders][, cb]*)
+The *addDevice()* method creates a device of the specified device type.  This method takes two required parameters: the device's *typeID* and a table containing information about the *device*, and two optional parameters: a *httpHeaders* table and a *cb* function.
 
 #### Device Table
 | key | value data type | Required | description |
@@ -114,8 +114,8 @@ watson.addDevice(typeID, device, function(error, response) {
     server.log(http.jsonencode(response.body));
 })
 ```
-### getDevice(*typeID, deviceID[, headers][, cb]*)
-The *getDevice()* requests the details for the device specified.  This method takes two required parameters: the device's *typeID* and the *deviceID*, and two optional parameters: a *headers* table and a *cb* function.
+### getDevice(*typeID, deviceID[, httpHeaders][, cb]*)
+The *getDevice()* requests the details for the device specified.  This method takes two required parameters: the device's *typeID* and the *deviceID*, and two optional parameters: a *httpHeaders* table and a *cb* function.
 
 ##### Example Code:
 ```squirrel
@@ -129,8 +129,8 @@ watson.getDevice(typeID, deviceID, function(error, response) {
 })
 ```
 
-### updateDevice(*typeID, deviceID, deviceInfo[, headers][, cb]*)
-The *updateDevice()* method updates the specified device with the info found in the *deviceInfo* table.  This method takes three required parameters: the device's *typeID*, the *deviceID*, and a table containing the updated *deviceInfo*, and two optional parameters: a *headers* table and a *cb* function.  See *Device Info Table* in *addDevice()* method description above for more details.
+### updateDevice(*typeID, deviceID, deviceInfo[, httpHeaders][, cb]*)
+The *updateDevice()* method updates the specified device with the info found in the *deviceInfo* table.  This method takes three required parameters: the device's *typeID*, the *deviceID*, and a table containing the updated *deviceInfo*, and two optional parameters: a *httpHeaders* table and a *cb* function.  See *Device Info Table* in *addDevice()* method description above for more details.
 
 ##### Example Code:
 ```squirrel
@@ -147,8 +147,8 @@ watson.updateDevice(typeID, deviceID, deviceInfo, function(error, response) {
 })
 ```
 
-### deleteDevice(*typeID, deviceID[, headers][, cb]*)
-The *addDevice()* method deletes the specified device.  This method takes two required parameters: the device's *typeID* and the *deviceID*, and two optional parameters: a *headers* table and a *cb* function.
+### deleteDevice(*typeID, deviceID[, httpHeaders][, cb]*)
+The *addDevice()* method deletes the specified device.  This method takes two required parameters: the device's *typeID* and the *deviceID*, and two optional parameters: a *httpHeaders* table and a *cb* function.
 
 ##### Example Code:
 ```squirrel
@@ -160,8 +160,8 @@ watson.deleteDevice(typeID, deviceID, function(error, response) {
 })
 ```
 
-### postData(*typeID, deviceID, eventID, data[, headers][, cb]*)
-The *postData()* method uploads data from the specified device.  This method takes four required parameters: the device's *typeID*, the *deviceID*, the *eventID* and the *data* table to be uploaded, and two optional parameters: a *headers* table and a *cb* function.  The *eventID* is a searchable string defined by the device that is posting data.
+### postData(*typeID, deviceID, eventID, data[, httpHeaders][, cb]*)
+The *postData()* method uploads data from the specified device.  This method takes four required parameters: the device's *typeID*, the *deviceID*, the *eventID* and the *data* table to be uploaded, and two optional parameters: a *httpHeaders* table and a *cb* function.  The *eventID* is a searchable string defined by the device that is posting data.
 
 #### Data Table
 | key | value data type | Required | description |
