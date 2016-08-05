@@ -2,11 +2,14 @@
 #require "promise.class.nut:3.0.0"
 #require "IBMWatson.class.nut:1.0.0"
 
+/***************************************************************************************
+ * Application Class:
+ *      Initializes Watson and Bullwinkle classes
+ *      Creates/Updates Device Type & Device on IBM Watson platform
+ *      Listen for sensor readings & publishes them to IBM Watson
+ **************************************************************************************/
 class Application {
-    static API_KEY = "a-9guj6a-zbzveplzcn";
-    static AUTH_TOKEN = "YJx)n8@u2*F@Yh(gUK";
-    static ORG_ID = "9guj6a";
-
+    // Watson Device Information
     static DEVICE_TYPE_ID = "EnvTail";
     static DEVICE_TYPE_DESCRIPTION = "Environmental Sensor Tail";
     static DEVICE_MANUFACTURER = "Electric Imp";
@@ -15,13 +18,24 @@ class Application {
     _watson = null;
     _deviceID = null;
     _deviceInfo = null;
-
+    _meta = null;
     _bull = null;
 
-    constructor() {
-        initializeClasses();
+    /***************************************************************************************
+     * Constructor
+     * Returns: null
+     * Parameters:
+     *      apiKey: string - Watson API Key
+     *      authToken: string - Watson Auth Token
+     *      orgID: string - Watson organization ID
+     **************************************************************************************/
+    constructor(apiKey, authToken, orgID) {
+        initializeClasses(apiKey, authToken, orgID);
         openListeners();
 
+        // Create/update Watson Platform with device type for this device
+        // Get device information from device
+        // Then create/update the device on Watson platform
         local series = [createDevType(), getDevInfo()];
         Promise.all(series)
             .then(function(status) {
@@ -31,6 +45,12 @@ class Application {
             }.bindenv(this))
     }
 
+    /***************************************************************************************
+     * createDevType
+     * Returns: Promise that resolves when device type is
+                        successfully created/updated, or rejects with an error
+     * Parameters: none
+     **************************************************************************************/
     function createDevType() {
         return Promise(function(resolve, reject) {
             _watson.getDeviceType(DEVICE_TYPE_ID, function(err, res) {
@@ -55,6 +75,12 @@ class Application {
         }.bindenv(this));
     }
 
+    /***************************************************************************************
+     * getDevInfo
+     * Returns: Promise that resolves when device sends info or when basic
+                        device info is set by the agent (if device not available);
+     * Parameters: none
+     **************************************************************************************/
     function getDevInfo() {
         return Promise(function(resolve, reject) {
             imp.wakeup(0.5, function() {
@@ -71,47 +97,68 @@ class Application {
         }.bindenv(this)); // end promise
     }
 
-    function initializeClasses() {
+    /***************************************************************************************
+     * initializeClasses
+     * Returns: this
+     * Parameters:
+     *      apiKey: string - Watson API Key
+     *      authToken: string - Watson Auth Token
+     *      orgID: string - Watson organization ID
+     **************************************************************************************/
+    function initializeClasses(apiKey, authToken, orgID) {
         _bull = Bullwinkle();
-        _watson = IBMWatson(API_KEY, AUTH_TOKEN, ORG_ID);
+        _watson = IBMWatson(apiKey, authToken, orgID);
+        return this;
     }
 
+    /***************************************************************************************
+     * openListeners
+     * Returns: this
+     * Parameters: none
+     **************************************************************************************/
     function openListeners() {
-        _bull.on("reading", sendReadingToWatson.bindenv(this));
-        _bull.on("sendDevInfo", createDev.bindenv(this));
+        _bull.on("reading", _sendReadingHandler.bindenv(this));
+        _bull.on("updateDevInfo", _updateDevInfoHandler.bindenv(this));
+        return this
     }
 
+    /***************************************************************************************
+     * setDeviceInfo
+     * Returns: this
+     * Parameters:
+     *      info: table - table with device information
+     **************************************************************************************/
     function setDeviceInfo(info) {
         _deviceID = info.devID.tostring();
         _deviceInfo = { "manufacturer" : DEVICE_MANUFACTURER,
                         "descriptiveLocation" : info.location,
-                        "fwVersion" : info.swVersion,
-                        "model" : info.mac };
+                        "fwVersion" : info.swVersion };
+        _meta = { "macAddress" : info.mac };
+        return this;
     }
 
+    /***************************************************************************************
+     * setBasicDevInfo
+     * Returns: this
+     * Parameters: none
+     **************************************************************************************/
     function setBasicDevInfo() {
         _deviceID = imp.configparams.deviceid.tostring();
         _deviceInfo = {"manufacturer" : DEVICE_MANUFACTURER};
+        return this;
     }
 
-    function sendReadingToWatson(message, reply) {
-        local reading = message.data;
-        server.log(http.jsonencode(reading));
-        local data = { "d": reading,
-                       "ts": _watson.formatTimestamp() };
-        // server.log(typeof _deviceID)
-        _watson.postData(DEVICE_TYPE_ID, _deviceID, EVENT_ID, data, function(err, res) {
-            if(err) server.error(err);
-            if(res.statuscode == 200) server.log("reading uploaded")
-        }.bindenv(this));
-    }
-
+    /***************************************************************************************
+     * createDev - creates or updates device on Watson platform
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
     function createDev() {
         _watson.getDevice(DEVICE_TYPE_ID, _deviceID, function(err, res) {
             switch (err) {
                 case _watson.MISSING_RESOURCE_ERROR:
                     // dev doesn't exist yet create it
-                    local info = {"deviceId": _deviceID,  "deviceInfo" : _deviceInfo};
+                    local info = {"deviceId": _deviceID,  "deviceInfo" : _deviceInfo, "metadata" : _meta};
                     _watson.addDevice(DEVICE_TYPE_ID, info, function(error, response) {
                         if (error != null) {
                             server.error(error);
@@ -122,7 +169,8 @@ class Application {
                     break;
                 case null:
                     // dev exists, update
-                    _watson.updateDevice(DEVICE_TYPE_ID, _deviceID, {"deviceInfo" : _deviceInfo}, function(error, response) {
+                    local info = {"deviceInfo" : _deviceInfo, "metadata" : _meta};
+                    _watson.updateDevice(DEVICE_TYPE_ID, _deviceID, info, function(error, response) {
                         if (error != null) {
                             server.error(error);
                             return;
@@ -136,6 +184,59 @@ class Application {
             }
         }.bindenv(this));
     }
+
+    // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
+
+    /***************************************************************************************
+     * sendReadingHandler
+     * Returns: this
+     * Parameters:
+     *      message: table - message received from bullwinkle listener
+     *      reply: function that sends a reply to bullwinle message sender
+     **************************************************************************************/
+    function _sendReadingHandler(message, reply) {
+        local reading = message.data;
+        server.log(http.jsonencode(reading));
+        local data = { "d": reading,
+                       "ts": _watson.formatTimestamp() };
+        // server.log(typeof _deviceID)
+        _watson.postData(DEVICE_TYPE_ID, _deviceID, EVENT_ID, data, function(err, res) {
+            if(err) server.error(err);
+            if(res.statuscode == 200) server.log("reading uploaded")
+        }.bindenv(this));
+    }
+
+    /***************************************************************************************
+     * sendReadingHandler
+     * Returns: this
+     * Parameters:
+     *      message: table - message received from bullwinkle listener
+     *      reply: function that sends a reply to bullwinle message sender
+     **************************************************************************************/
+    function _updateDevInfoHandler(message, reply) {
+        local info = message.body;
+        if ("location" in info) {
+            _deviceInfo.descriptiveLocation = info.location;
+            item.rawdelete("location");
+        }
+        if ("swVersion" in info) {
+            _deviceInfo.fwVersion = info.swVersion;
+            item.rawdelete("swVersion");
+        }
+        _meta = info;
+        if ("mac" in _meta) _meta.macAddress = info.mac;
+
+        createDev();
+    }
 }
 
-app <- Application();
+// RUNTIME
+// ----------------------------------------------
+
+// Watson API Auth Keys
+const API_KEY = "<YOUR API KEY HERE>";
+const AUTH_TOKEN = "<YOUR AUTH KEY HERE>";
+const ORG_ID = "<YOUR ORG ID HERE>";
+
+//  Start Up App
+app <- Application(API_KEY, AUTH_TOKEN, ORG_ID);
