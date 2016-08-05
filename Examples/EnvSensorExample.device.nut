@@ -10,22 +10,24 @@
 
 
 class EnvTail {
-    static READING_INTERVAL = 300;
+    static DEFAULT_READING_INTERVAL = 300;
 
     _tempHumid = null;
     _ambLx = null;
     _press = null;
     _led = null;
     _bull = null;
+    _readingInterval = null;
 
     constructor(enableTempHumid, enableAmbLx, enablePressure, bullwinkle) {
         _bull = bullwinkle;
         _configureLED();
         _enableSensors(enableTempHumid, enableAmbLx, enablePressure);
+        setReadingInterval();
     }
 
     function takeReadings() {
-        // take readings asynchonously
+        // Take readings asynchonously if sensor enabled
         local que = _buildReadingQue();
 
         // When all readings have returned values send to agent
@@ -40,6 +42,14 @@ class EnvTail {
                 // set timer for next reading
                 imp.wakeup(READING_INTERVAL, takeReadings.bindenv(this));
             }.bindenv(this));
+    }
+
+    function setReadingInterval(interval =  null) {
+        _readingInterval = (interval == null) ? DEFAULT_READING_INTERVAL : interval;
+    }
+
+    function getReadingInterval() {
+        return _readingInterval;
     }
 
     function flashLed() {
@@ -110,15 +120,21 @@ class EnvTail {
 }
 
 class DeviceInfo {
-
     _devInfo = null;
     _bull = null;
+    _devInfoSent = null;
 
     constructor(location, bullwinkle) {
         _devInfo = getDeviceInfo(location);
+        _devInfoSent = false;
         _bull = bullwinkle;
 
-        _bull.on("devInfo", _sendDeviceInfo.bindenv(this));
+        _bull.on("devInfo", _sendReqestedInfo.bindenv(this));
+
+        // if device reboots make sure to send dev data
+        imp.wakeup(5, function() {
+            if (!_devInfoSent) sendDeviceInfo();
+        }.bindenv(this));
     }
 
     function getDeviceInfo(location) {
@@ -127,12 +143,24 @@ class DeviceInfo {
         info.swVersion <- imp.getsoftwareversion();
         info.devID <- hardware.getdeviceid();
         info.location <- location;
-        // imp.scanwifinetworks();
+
         return info;
     }
 
-    function _sendDeviceInfo(message, reply) {
+    function sendDeviceInfo(info = null) {
+        if (typeof info == "table") _addDevInfo(info);
+        _bull.send("sendDevInfo", _devInfo);
+    }
+
+    function _sendReqestedInfo(message, reply) {
+        _devInfoSent = true;
         reply(_devInfo);
+    }
+
+    function _addDevInfo(info) {
+        foreach(key, value in info) {
+            _devInfo[key] = value;
+        }
     }
 }
 

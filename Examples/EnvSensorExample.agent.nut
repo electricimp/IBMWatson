@@ -78,6 +78,7 @@ class Application {
 
     function openListeners() {
         _bull.on("reading", sendReadingToWatson.bindenv(this));
+        _bull.on("sendDevInfo", createDev.bindenv(this));
     }
 
     function setDeviceInfo(info) {
@@ -120,7 +121,7 @@ class Application {
                     }.bindenv(this));
                     break;
                 case null:
-                    // dev type exists, good to use for this device
+                    // dev exists, update
                     _watson.updateDevice(DEVICE_TYPE_ID, _deviceID, {"deviceInfo" : _deviceInfo}, function(error, response) {
                         if (error != null) {
                             server.error(error);
