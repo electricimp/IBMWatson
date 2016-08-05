@@ -32,6 +32,8 @@ class Application {
     constructor(apiKey, authToken, orgID) {
         initializeClasses(apiKey, authToken, orgID);
         openListeners();
+        _meta = {};
+        _deviceInfo = {};
 
         // Create/update Watson Platform with device type for this device
         // Get device information from device
@@ -148,6 +150,7 @@ class Application {
     function setBasicDevInfo() {
         _deviceID = imp.configparams.deviceid.tostring();
         _deviceInfo = {"manufacturer" : DEVICE_MANUFACTURER};
+        _meta = {};
         return this;
     }
 
@@ -216,18 +219,28 @@ class Application {
      *      reply: function that sends a reply to bullwinle message sender
      **************************************************************************************/
     function _updateDevInfoHandler(message, reply) {
-        local info = message.body;
-        if ("location" in info) {
-            _deviceInfo.descriptiveLocation = info.location;
-            item.rawdelete("location");
+        if (typeof message.data == "table") {
+            local info = message.data;
+            if ("devID" in info) {
+                _deviceID = info.devID.tostring();
+                info.rawdelete("devID");
+            }
+            if ("location" in info) {
+                _deviceInfo.descriptiveLocation <- info.location;
+                info.rawdelete("location");
+            }
+            if ("swVersion" in info) {
+                _deviceInfo.fwVersion <- info.swVersion;
+                info.rawdelete("swVersion");
+            }
+            if ("mac" in info) {
+                _meta.macAddress <- info.mac;
+                info.rawdelete("mac");
+            }
+            foreach(key, value in info) {
+                _meta[key] <- value;
+            }
         }
-        if ("swVersion" in info) {
-            _deviceInfo.fwVersion = info.swVersion;
-            item.rawdelete("swVersion");
-        }
-        _meta = info;
-        if ("mac" in _meta) _meta.macAddress = info.mac;
-
         createDev();
     }
 }
