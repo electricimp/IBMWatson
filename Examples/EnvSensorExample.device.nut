@@ -59,7 +59,7 @@ class EnvTail {
             }.bindenv(this))
             .finally(function(val) {
                 // set timer for next reading
-                imp.wakeup(READING_INTERVAL, takeReadings.bindenv(this));
+                imp.wakeup(_readingInterval, takeReadings.bindenv(this));
             }.bindenv(this));
     }
 
