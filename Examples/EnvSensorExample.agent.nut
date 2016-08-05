@@ -35,14 +35,17 @@ class Application {
 
         // Create/update Watson Platform with device type for this device
         // Get device information from device
-        // Then create/update the device on Watson platform
+        // Then create/update the device on Watson platform or log error
         local series = [createDevType(), getDevInfo()];
         Promise.all(series)
             .then(function(status) {
-                server.log(http.jsonencode(status));
-                // create device
-                createDev();
-            }.bindenv(this))
+                    server.log(http.jsonencode(status));
+                    // create device
+                    createDev();
+                }.bindenv(this),
+                function(rejected) {
+                    server.error(rejected);
+                }.bindenv(this));
     }
 
     /***************************************************************************************
@@ -175,7 +178,6 @@ class Application {
                             server.error(error);
                             return;
                         }
-                        server.log("Dev updated");
                     }.bindenv(this));
                     break;
                 default:
