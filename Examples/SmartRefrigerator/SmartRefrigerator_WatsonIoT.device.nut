@@ -1,125 +1,172 @@
-// Temperature Humidity sensor Library
-#require "Si702x.class.nut:1.0.0"
-// Air Pressure sensor Library
-#require "LPS25H.class.nut:2.0.1"
-// Ambient Light sensor Library
-#require "APDS9007.class.nut:2.2.1"
-
-#require "ConnectionManager.class.nut:1.0.1"
+//line 1 "device.nut"
+// Utility Libraries
 #require "promise.class.nut:3.0.0"
 #require "bullwinkle.class.nut:2.3.0"
 
+// Sensor Libraries
+// Accelerometer Library
+#require "LIS3DH.class.nut:1.3.0"
+// Temperature Humidity sensor Library
+#require "HTS221.class.nut:1.0.0"
 
+//line 1 "ExplorerKitSensors.class.nut"
 /***************************************************************************************
- * EnvTail Class:
- *      Initializes and enables sensors specified in constructor
- *      Set time interval between readings
- *      Get time interval between readings
- *      Takes sensor readings & stores them to local device storage
+ * ExplorerKitSensors Class:
+ *      Initializes specified sensors
+ *      Configures initialized sensors
+ *      Checks light level to determine doorStatus
+ *      Take & store(in nv) sensor readings (returns a promise, so can schedule async flow)
+ *      Configures/enables click interrupt
+ *      Disables click interrupt
+ *      Checks/clears click interrupt
+ *
+ * Dependencies
+ *      Promise
+ *      HTS221 (optional) if using the TempHumid sensor
+ *      LPS22HB (optional) if using the AirPressure sensor
+ *      LIS3DH (optional) if using the Aceelerometer
  **************************************************************************************/
-class EnvTail {
-    _tempHumid = null;
-    _ambLx = null;
-    _press = null;
-    _led = null;
-    _cm = null;
+class ExplorerKitSensors {
+    // Accel i2c Address
+    static LIS3DH_ADDR = 0x32;
 
-    _readingInterval = null;
+    // Sensor Identifiers
+    static TEMP_HUMID = 0x01;
+    static AIR_PRESSURE = 0x02;
+    static ACCELEROMETER = 0x04;
+
+    // Event polarity
+    static ALERT_EVENT = 1;
+
+    // Accel settings
+    static ACCEL_DATARATE = 100;
+    // High Sensitivity set, so we alway wake on a door event
+    static ACCEL_THRESHOLD = 0.1;
+    static ACCEL_DURATION = 1;
+
+    // Class instances
+    tempHumid = null;
+    press = null;
+    accel = null;
+
+    alertPin = null;
 
     /***************************************************************************************
      * Constructor
      * Returns: null
      * Parameters:
-     *      enableTempHumid : boolean - if the temperature/humidity sensor should be enabled
-     *      enableAmbLx : boolean - if the ambient light sensor should be enabled
-     *      enablePressure : boolean - if the air pressure sensor should be enabled
-     *      readingInt : second to wait between readings
+     *      sensors : array of sensor statics to be enabled
+     *      cm (optional) : connection manager instance if offline error logs desired
      **************************************************************************************/
-    constructor(enableTempHumid, enableAmbLx, enablePressure, readingInt, cm = null) {
-        _cm = cm;
-        _configureLED();
-        _configureNVTable();
-        _enableSensors(enableTempHumid, enableAmbLx, enablePressure);
-        setReadingInterval(readingInt);
+    constructor(sensors) {
+        _initializeSensors(sensors);
     }
 
     /***************************************************************************************
      * takeReadings - takes readings, sends to agent, schedules next reading
-     * Returns: null
-     * Parameters:
-     *      cb (optional) : function - callback that is passed the parsed reading
+     * Returns: A promise
+     * Parameters: none
      **************************************************************************************/
-    function takeReadings(cb = null) {
-        // Take readings asynchonously if sensor enabled
-        local que = _buildReadingQue();
+    function takeReadings() {
+        return Promise(function(resolve, reject) {
+            // Take readings asynchonously if sensor enabled
+            local que = _buildReadingQue();
+            // When all sensors have returned values store a reading locally
+            // Then resolve
+            Promise.all(que)
+                .then(function(envReadings) {
+                    local reading = _parseReadings(envReadings);
+                    // store reading
+                    nv.readings.push(reading);
+                }.bindenv(this))
+                .finally(function(val) {
+                    return resolve(nv.readings)
+                }.bindenv(this));
+        }.bindenv(this));
+    }
 
-        // When all sensors have returned values store a reading locally
-        // Then set timer for next reading
-        Promise.all(que)
-            .then(function(envReadings) {
-                local reading = _parseReadings(envReadings);
-                // store reading
-                nv.readings.push(reading);
-                // pass reading to callback
-                if (cb) imp.wakeup(0, function() {
-                    cb(reading);
-                }.bindenv(this));
-                // flash led to let user know a reading was stored
-                flashLed();
-            }.bindenv(this))
-            .finally(function(val) {
-                // set timer for next reading
-                imp.wakeup(_readingInterval, function() {
-                    takeReadings(cb);
-                }.bindenv(this));
+    /***************************************************************************************
+     * getLightLevel
+     * Returns: a light reading from the imp001 hardware light sensor
+     * Parameters: none
+     **************************************************************************************/
+    function getLightLevel() {
+        // imp.sleep(0.2);
+        return hardware.lightlevel();
+    }
+
+    /***************************************************************************************
+     * configureSensors
+     * Returns: this
+     * Parameters: none
+     **************************************************************************************/
+    function configureSensors() {
+        if (tempHumid) {
+            tempHumid.setMode(HTS221_MODE.ONE_SHOT);
+        }
+        if (press) {
+            press.softReset();
+            // set up to take readings
+            press.enableLowCurrentMode(true);
+            press.setMode(LPS22HB_MODE.ONE_SHOT);
+        }
+        if (accel) {
+            accel.init();
+            // set up to take readings
+            accel.setLowPower(true);
+            accel.setDataRate(ACCEL_DATARATE);
+            accel.enable(true);
+        }
+        return this;
+    }
+
+    /***************************************************************************************
+     * enableAccelerometerClickInterrupt
+     * Returns: this
+     * Parameters:
+                cb (optional) : optional interrupt callback function (passed to the wake pin configure)
+     **************************************************************************************/
+    function enableAccelerometerClickInterrupt(cb = null) {
+        // Configure Alert Pin
+        alertPin = hardware.pin1;
+        if (cb == null) {
+            alertPin.configure(DIGITAL_IN_WAKEUP);
+        } else {
+            alertPin.configure(DIGITAL_IN_WAKEUP, function() {
+                if (alertPin.read() == 0) return;
+                cb();
             }.bindenv(this));
+        }
+
+
+        // enable and latch interrupt
+        accel.configureInterruptLatching(true);
+        accel.configureClickInterrupt(true, LIS3DH.SINGLE_CLICK, ACCEL_THRESHOLD, ACCEL_DURATION);
+
+        return this;
     }
 
     /***************************************************************************************
-     * setReadingInterval
+     * disableInterrupt
      * Returns: this
      * Parameters:
-     *      interval (optional) : the time in seconds to wait between readings,
-     *                                     if nothing passed in sets the readingInterval to
-     *                                     the default of 300s
      **************************************************************************************/
-    function setReadingInterval(interval) {
-        _readingInterval = interval;
+    function disableInterrupt() {
+        accel.configureClickInterrupt(false);
         return this;
     }
 
     /***************************************************************************************
-     * getReadingInterval
-     * Returns: the current reading interval
+     * checkAccelInterrupt, checks and clears the interrupt
+     * Returns: boolean, if single click event detected
      * Parameters: none
      **************************************************************************************/
-    function getReadingInterval() {
-        return _readingInterval;
-    }
-
-    /***************************************************************************************
-     * flashLed - blinks the led, this function blocks for 0.5s
-     * Returns: this
-     * Parameters: none
-     **************************************************************************************/
-    function flashLed() {
-        led.write(1);
-        imp.sleep(0.5);
-        led.write(0);
-        return this;
+    function checkAccelInterrupt() {
+        local event = accel.getInterruptTable();
+        return (event.singleClick) ? true : false;
     }
 
     // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
-
-    /***************************************************************************************
-     * _configureNVTable
-     * Returns: null
-     * Parameters: none
-     **************************************************************************************/
-    function _configureNVTable() {
-        local root = getroottable();
-        if (!("nv" in root)) root.nv <- { "readings" : [] };
-    }
 
     /***************************************************************************************
      * _buildReadingQue
@@ -128,9 +175,10 @@ class EnvTail {
      **************************************************************************************/
     function _buildReadingQue() {
         local que = [];
-        if (_ambLx) que.push( _takeReading(_ambLx) );
-        if (_tempHumid) que.push( _takeReading(_tempHumid) );
-        if (_press) que.push( _takeReading(_press) );
+        // we are not interrested in accel reading data for this app, so it is not included here
+        if (tempHumid) que.push( _takeReading(tempHumid) );
+        if (press) que.push( _takeReading(press) );
+        que.push(_takeReading("lx"));
         return que;
     }
 
@@ -142,9 +190,17 @@ class EnvTail {
      **************************************************************************************/
     function _takeReading(sensor) {
         return Promise(function(resolve, reject) {
-            sensor.read(function(reading) {
-                return resolve(reading);
-            }.bindenv(sensor));
+            if (sensor == "lx") {
+                return resolve({"lxLevel" : getLightLevel()});
+            } else if (sensor == accel) {
+                sensor.getAccel(function(reading) {
+                    return resolve(reading);
+                }.bindenv(sensor));
+            } else {
+                sensor.read(function(reading) {
+                    return resolve(reading);
+                }.bindenv(sensor));
+            }
         }.bindenv(this))
     }
 
@@ -160,9 +216,9 @@ class EnvTail {
         // log error or store value of reading
         foreach(reading in readings) {
             if ("err" in reading) {
-                (_cm) ? _cm.error(reading.err) : server.error(reading.err);
+                server.error(reading.err);
             } else if ("error" in reading) {
-                (_cm) ? _cm.error(reading.error) : server.error(reading.error);
+                server.error(reading.error);
             } else {
                 foreach(sensor, value in reading) {
                     data[sensor] <- value;
@@ -173,76 +229,573 @@ class EnvTail {
     }
 
     /***************************************************************************************
-     * _enableSensors
+     * _initializeSensors
      * Returns: this
      * Parameters:
-     *      tempHumid: boolean - if temperature/humidity sensor should be enabled
-     *      ambLx: boolean - if ambient light sensor should be enabled
-     *      press: boolean - if air pressure sensor should be enabled
+     *      sensors: array of sensor constants for the sensors that should be initialized
      **************************************************************************************/
-    function _enableSensors(tempHumid, ambLx, press) {
-        if (tempHumid || press) _configure_i2cSensors(tempHumid, press);
-        if (ambLx) _configureAmbLx();
-        return this;
-    }
-
-    /***************************************************************************************
-     * _configure_i2cSensors
-     * Returns: this
-     * Parameters:
-     *      tempHumid: boolean - if temperature/humidity sensor should be enabled
-     *      press: boolean - if air pressure sensor should be enabled
-     **************************************************************************************/
-    function _configure_i2cSensors(tempHumid, press) {
+    function _initializeSensors(sensors) {
         local i2c = hardware.i2c89;
         i2c.configure(CLOCK_SPEED_400_KHZ);
-        if (tempHumid) _tempHumid = Si702x(i2c);
-        if (press) {
-            _press = LPS25H(i2c);
-            // set up to take readings
-            _press.softReset();
-            _press.enable(true);
+
+        if (sensors.find(TEMP_HUMID) != null) {
+            tempHumid = HTS221(i2c);
         }
+
+        if (sensors.find(AIR_PRESSURE) != null) {
+            press = LPS22HB(i2c);
+        }
+
+        if (sensors.find(ACCELEROMETER) != null) {
+            accel = LIS3DH(i2c, LIS3DH_ADDR);
+        }
+
         return this;
+    }
+
+}//line 1 "SmartFridgeApp.class.nut"
+/***************************************************************************************
+ * SmartFridgeApp Class:
+ *      Configures sleep/wake behavior, and interrupts
+ *      Takes readings
+ *      Sends readings to agent
+ *      Reports changes to fridge door status (open, closed) to agent
+ *      Sends alerts to agent if
+ *              door open too long
+ *              temp above threshold
+ *              humidity above threshold
+ *
+ * Dependencies
+ *      Promise Library
+ *      Bullwinkle Library
+ *      ExplorerKitSensors Class
+ **************************************************************************************/
+class SmartFridgeApp {
+    // Update the static variables to customize app for your refrigerator
+
+    // Wake and connection time in seconds
+    static READING_INTERVAL = 15;
+    static REPORTING_INTERVAL = 60;
+
+    // Time in seconds to wait before sleeping after boot
+    // This leaves time to do a BlinkUp after bootup
+    static BOOT_TIMEOUT = 60;
+
+    // When device is awake, time to wait between checks for change in door status
+    static DOOR_CHECK_TIMER = 1;
+
+    // Thresholdes used to determine events
+    static LIGHT_THRESHOLD = 9000; // door open/closed
+    static TEMP_THRESHOLD = 11;
+    static HUMID_THRESHOLD = 70;
+
+    // Time in seconds that door is open for before door alert triggered
+    static DOOR_ALERT_TIMEOUT = 30;
+    // Number of seconds the conditon must be over threshold before triggering env event
+    static TEMP_ALERT_CONDITION = 900;
+    static HUMID_ALERT_CONDITION = 900;
+    // Time in seconds after door close event before env events will be checked (prevents temperature or humidity alerts right after is opened)
+    static DOOR_CONDITION_TIMEOUT = 180;
+
+    // Event types (these should match agent side event types in SmartFrigDataManager)
+    static EVENT_TYPE_TEMP_ALERT = "temperaure alert";
+    static EVENT_TYPE_HUMID_ALERT = "humidity alert";
+    static EVENT_TYPE_DOOR_ALERT = "door alert";
+    static EVENT_TYPE_DOOR_STATUS = "door status";
+
+    // Debug logging flags, note logging requires a connection to the server, so logging will decrease battery life
+    static DEBUG_LOGGING = true;
+    static LX_LOGGING = false;
+
+    // Class instances
+    _bull = null;
+    _exKit = null;
+
+    _boot = false;
+
+    /***************************************************************************************
+     * constructor
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    constructor(sensors) {
+        _configureNVTable();
+        _initializeClasses(sensors);
+        checkWakereason();
     }
 
     /***************************************************************************************
-     * _configureAmbLx
-     * Returns: this
+     * checkWakereason - checks wake reason then kick of appropriate flow
+     * Returns: null
      * Parameters: none
      **************************************************************************************/
-    function _configureAmbLx() {
-        local lxOutPin = hardware.pin5;
-        local lxEnPin = hardware.pin7;
-        lxOutPin.configure(ANALOG_IN);
-        lxEnPin.configure(DIGITAL_OUT, 1);
+    function checkWakereason() {
+        // Run wakeup flow
+        local wakeReason = hardware.wakereason();
+        switch( wakeReason ) {
+            case WAKEREASON_PIN:
+                if (DEBUG_LOGGING) nv.logs.push("Woke on int pin.");
+                clearInterrupt();
+                break;
+            case WAKEREASON_TIMER:
+                if (DEBUG_LOGGING) nv.logs.push("Woke on timer.");
+                break;
+            case WAKEREASON_POWER_ON:
+                _boot = true;
+            default :
+                if (DEBUG_LOGGING) {
+                    nv.logs.push("Woke on boot, etc.");
+                    nv.logs.push("WAKE REASON: " + wakeReason);
+                }
+                _configureTimers();
+        }
 
-        _ambLx = APDS9007(lxOutPin, 47000, lxEnPin);
-        _ambLx.enable();
-        return this;
+        _configureDevice();
+        // Take Readings/Run Connection Flow
+        runConnectionFlow();
     }
 
     /***************************************************************************************
-     * _configureLED
-     * Returns: this
+     * runConnectionFlow
+     *          - run connection promise passed in
+     *          - then check if we should connect
+     *          - then check if we should take readings
+     *          - then go back to sleep
+     * Returns: null
      * Parameters: none
      **************************************************************************************/
-    function _configureLED() {
-        _led = hardware.pin2;
-        _led.configure(DIGITAL_OUT, 0);
-        return this;
+    function runConnectionFlow() {
+        takeReadings()
+            .then(function(msg) {
+                if (DEBUG_LOGGING) nv.logs.push(msg);
+                // Check if time to connect
+                if ( _connectTime() || nv.events.len() > 0) {
+                    return sendUpdate();
+                } else {
+                    return "Not connection time yet.";
+                }
+            }.bindenv(this))
+            .then(function(msg) {
+                if (DEBUG_LOGGING) nv.logs.push(msg);
+                // Wait before power down if we just woke because of boot up
+                if (_boot) {
+                    imp.wakeup(BOOT_TIMEOUT, function() {
+                        powerDown();
+                    }.bindenv(this))
+                } else {
+                    powerDown();
+                }
+            }.bindenv(this));
     }
-}
 
+    /***************************************************************************************
+     * takeReadings, takes readings and checks for env events
+     * Returns: promise
+     * Parameters: none
+     **************************************************************************************/
+    function takeReadings() {
+        // Take readings and check env thresholds
+        return Promise(function(resolve, reject) {
+            _exKit.takeReadings()
+                .then(function(readings) {
+                    checkForEnvEvents(readings);
+                    return resolve("Env readings stored and checked.");
+                }.bindenv(this));
+        }.bindenv(this))
+    }
+
+    /***************************************************************************************
+     * sendUpdate - send nv readings and door status to agent
+     *                then clear nv readings
+     * Returns: promise
+     * Parameters: none
+     **************************************************************************************/
+    function sendUpdate() {
+        return Promise(function(resolve, reject) {
+            local update = _createUpdateTable();
+
+            // We are connecting so log messages
+            if (DEBUG_LOGGING) server.log("SENDING UPDATE at " + time());
+            if (DEBUG_LOGGING) _logStoredMsgs();
+
+            // Send update to agent
+            _bull.send("update", update)
+                .onReply(function(msg) {
+                    return resolve("Agent received update.");
+                }.bindenv(this)) // onReply closure
+                .onFail(function(err, msg, retry) {
+                    // Agent didn't receive data, so store to send on next connect
+                    nv.readings.extend(update.readings);
+                    nv.events.extend(update.events);
+                    return resolve("Connection attempt failed. Readings kept.");
+                }.bindenv(this)); // onFail closure
+
+            setNextConnect();
+
+        }.bindenv(this)); // Promise closure
+    }
+
+    /***************************************************************************************
+     * checkForEnvEvents, checks for door, temp or humidity events
+     * Returns: null
+     * Parameters: readings array
+     **************************************************************************************/
+    function checkForEnvEvents(readings) {
+        if (readings.len() > 0) {
+            local now = time();
+            local reading = readings.top();
+
+            if ("lxLevel" in reading) {
+                _updateDoorStatus(reading.lxLevel);
+            }
+
+            if (nv.env.doorTimeout != null && time() >= nv.env.doorTimeout) {
+                // Stop blocking env threshold events if door timeout has expired
+                nv.env.doorTimeout = null;
+            }
+
+            if ("temperature" in reading) {
+                if (reading.temperature < TEMP_THRESHOLD) {
+                    // reset event flag if set, b/c we have dropped back to acceptable range
+                    if (nv.env.eventReported.temperature) nv.env.eventReported.temperature = false;
+                } else if (nv.door.currentStatus == "closed" && nv.env.doorTimeout == null && !nv.env.eventReported.temperature) {
+                    // We have met all conditions, so check for temp event
+                    _checkEnvTimer("temperature", now, reading.temperature);
+                }
+            }
+
+            if ("humidity" in reading) {
+                if (reading.humidity < HUMID_THRESHOLD) {
+                    // reset event flag if set, b/c we have dropped back to acceptable range
+                    if (nv.env.eventReported.humidity) nv.env.eventReported.humidity = false;
+                } else if (nv.door.currentStatus == "closed" && nv.env.doorTimeout == null && !nv.env.eventReported.humidity) {
+                    // We have met all conditions, so check for humid event
+                    _checkEnvTimer("humidity", now, reading.humidity);
+                }
+            }
+        }
+
+    }
+
+    /***************************************************************************************
+     * clearInterrupt
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function clearInterrupt() {
+        _exKit.checkAccelInterrupt();
+    }
+
+    /***************************************************************************************
+     * getWakeTimer - sets at timestamp for the next scheduled reading
+     * Returns: Time in seconds to sleep for
+     * Parameters:
+     *          now (optional): current time
+     **************************************************************************************/
+    function getWakeTimer(now = null) {
+        local wakeTimer, nextWakeTime;
+        if (now == null) now = time();
+        if ("nextWakeTime" in nv.timers) wakeTimer = nv.timers.nextWakeTime - now;
+
+        if (wakeTimer == null || wakeTimer <= 1) {
+            // Next wake time has not been configured or we just took a reading
+            // Set next wake time to default
+            wakeTimer = READING_INTERVAL;
+        }
+
+        // Store next wake time
+        nv.timers.nextWakeTime <- now + wakeTimer;
+        // Return time to sleep for
+        return nextWakeTime;
+    }
+
+    /***************************************************************************************
+     * setNextConnect - sets a timestamp for the next time the device should connect to the agent
+     * Returns: null
+     * Parameters:
+     *          now (optional): current time
+     **************************************************************************************/
+     function setNextConnect(now = null) {
+        if (now == null) now = time();
+        nv.timers.nextConnectTime <- now + REPORTING_INTERVAL;
+    }
+
+    /***************************************************************************************
+     * powerDown - if door is open turn off WiFi, otherwise sleep
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function powerDown() {
+        if (nv.door.currentStatus == "open") {
+            // Disconnect from WiFi
+            imp.onidle(function() {
+                server.disconnect();
+            }.bindenv(this));
+
+            // Start loop to check for Door Close event
+            _checkForDoorEvents();
+        } else {
+            sleep(getWakeTimer());
+        }
+    }
+
+    /***************************************************************************************
+     * sleep
+     * Returns: null
+     * Parameters:
+     *          timer: number of seconds to sleep for
+     **************************************************************************************/
+    function sleep(timer = null) {
+        // Make sure we always have a timer set
+        if (timer == null) timer = READING_INTERVAL;
+
+        // Put imp to sleep when it becomes idle
+        if (DEBUG_LOGGING) nv.logs.push("Going to sleep for " + timer + " sec.");
+        if (server.isconnected()) {
+            imp.onidle(function() {
+                server.sleepfor(timer);
+            }.bindenv(this));
+        } else {
+            imp.deepsleepfor(timer);
+        }
+    }
+
+    // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
+
+    /***************************************************************************************
+     * _initializeClasses
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _initializeClasses(sensors) {
+        // agent/device communication helper library
+        _bull = Bullwinkle();
+        // Class to manage sensors
+        _exKit = ExplorerKitSensors(sensors);
+    }
+
+    /***************************************************************************************
+     * _configureDevice
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _configureDevice() {
+        imp.setpowersave(true); // will slow connection time when true
+        // Configure sensors and interrupts
+        _exKit.configureSensors();
+        _exKit.enableAccelerometerClickInterrupt(_checkForDoorEvents.bindenv(this));
+    }
+
+    /***************************************************************************************
+     * _configureNVTable
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _configureNVTable() {
+        local root = getroottable();
+        local door = { "currentStatus" : "closed",
+                              "openAlertSent" : false,
+                              "ts" : time() };
+        local env = { "doorTimeout" : null,
+                             "tempTimer" : null,
+                             "humidTimer" : null,
+                             "eventReported" : {"temperature": false , "humidity" : false} };
+        if (!("nv" in root)) root.nv <- { "readings" : [],
+                                                      "events" : [],
+                                                      "timers" : {},
+                                                      "logs" : [],
+                                                      "door" : door,
+                                                      "env" : env };
+    }
+
+    /***************************************************************************************
+     * _configureTimers - sets nextWakeTime and nextConnectTime
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _configureTimers() {
+        local now = time();
+        getWakeTimer(now);
+        setNextConnect(now);
+    }
+
+    /***************************************************************************************
+     * _connectTime - checks current time with connection time
+     * Returns: boolean
+     * Parameters: none
+     **************************************************************************************/
+    function _connectTime() {
+        return (time() >= nv.timers.nextConnectTime) ? true : false;
+    }
+
+    /***************************************************************************************
+     * _checkEnvTimer, checks/sets timers and creates alert if conditions met
+     * Returns: null
+     * Parameters:
+     *          type: string with name of sensor
+     *          now: integer, current timestamp
+     *          reading: latest reading from sensor
+     **************************************************************************************/
+    function _checkEnvTimer(type, now, reading) {
+        local timeout, eventType, timer
+
+        if (type == "humidity") {
+            timeout = HUMID_ALERT_CONDITION;
+            eventType = EVENT_TYPE_HUMID_ALERT;
+            timer = "humidTimer";
+        }
+        if (type == "temperature") {
+            timeout = TEMP_ALERT_CONDITION;
+            eventType = EVENT_TYPE_TEMP_ALERT;
+            timer = "tempTimer";
+        }
+
+        if (nv.env[timer] == null) {
+            // Reading above threshold for first time, so set alert condition time
+            nv.env[timer] = now + timeout;
+        } else if (now >= nv.env[timer]) {
+             // Alert time passed, so trigger event
+            nv.events.push({ "type" : eventType,
+                                        "ts" : now,
+                                        "description": format("%s above threshod.", type),
+                                        "latestReading" : reading });
+            // Update env alert flag (so we don't continue to send same alert)
+            nv.env.eventReported[type] = true;
+            // Reset stored alert time
+            nv.env[timer] = null;
+        }
+
+    }
+
+    /***************************************************************************************
+     * _checkForDoorEvents -
+     *             loops until door close detected, then runs connection
+     *             flow to notify agent of the change, and then sleep
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _checkForDoorEvents() {
+        _updateDoorStatus(_exKit.getLightLevel());
+        if (nv.events.len() > 0) {
+            // Door event was found, connect and send
+            runConnectionFlow();
+        } else {
+            // No change in door status, so check again in a bit
+            imp.wakeup(DOOR_CHECK_TIMER, _checkForDoorEvents.bindenv(this));
+        }
+    }
+
+    /***************************************************************************************
+     * _updateDoorStatus, stores current door status and event triggered flag in nv
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _updateDoorStatus(lxReading) {
+        local doorStatus = ( LIGHT_THRESHOLD < lxReading ) ?  "open" : "closed";
+
+        if (LX_LOGGING) {
+            nv.logs.push("Lx level: " + lxReading);
+            nv.logs.push("NEW DOOR STATUS: " + doorStatus);
+            nv.logs.push("STORED DOOR STATUS: " +  nv.door.currentStatus);
+        }
+
+        // Event triggered
+        if (doorStatus != nv.door.currentStatus) {
+            // Get a time stamp for event
+            local ts = time();
+
+            // Door close event has just happened
+            if (doorStatus == "closed") {
+                // Set door timeout
+                nv.env.doorTimeout = ts + DOOR_CONDITION_TIMEOUT;
+                // Reset alert flag
+                nv.door.openAlertSent <- false;
+            }
+
+            // Update door status
+            nv.door.currentStatus <- doorStatus;
+            nv.door.ts <- ts;
+            // Update events
+            nv.events.push({ "type" : EVENT_TYPE_DOOR_STATUS,
+                                        "description": format("door %s.", doorStatus.tolower()),
+                                        "ts" : ts });
+
+        } else if (doorStatus == "open" && !nv.door.openAlertSent) {
+            // Determine if door alert should be triggered
+            local doorOpenDuration = time() - nv.door.ts;
+            if (doorOpenDuration >  DOOR_ALERT_TIMEOUT) {
+                nv.events.push({ "type" : EVENT_TYPE_DOOR_ALERT,
+                                            "description" : format("door has been open for %i seconds", doorOpenDuration),
+                                            "ts" : time() });
+                // Don't send multiple alerts
+                nv.door.openAlertSent <- true;
+            }
+        }
+    }
+
+    /***************************************************************************************
+     * _logStoredMsgs
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _logStoredMsgs() {
+        // Log each stored message
+        server.log("------------------------------------------------");
+        foreach (log in nv.logs) {
+            server.log(log);
+        }
+        server.log("------------------------------------------------");
+        // Clear logs
+        nv.logs = [];
+    }
+
+
+    /***************************************************************************************
+     * _createUpdateTable, table to send to agent
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _createUpdateTable() {
+            local update = {};
+
+            update.doorStatus <- nv.door;
+            update.readings <- _copyArray(nv.readings);
+            update.events <- _copyArray(nv.events);
+
+            // clear nv tables, so we don't resend data
+            nv.readings <- [];
+            nv.events <- [];
+
+            return update;
+    }
+
+    /***************************************************************************************
+     * _copyArray
+     * Returns: null
+     * Parameters: none
+     **************************************************************************************/
+    function _copyArray(arr) {
+        local copy = [];
+        foreach (val in arr) {
+            copy.push(val);
+        }
+        return copy;
+    }
+}//line 13 "device.nut"
 
 /***************************************************************************************
  * DeviceInfo Class:
  *      Sets basic device info
+ *      Listens for request from agent and sends device info
  *      Getter for retrieving device info
- *      Setter for updating device info
  **************************************************************************************/
 class DeviceInfo {
+
+    // Update this to your location string
+    static DEVICE_LOCATION = "Electric Imp HQ Open Office Area";
+
     _devInfo = null;
+    _bull = null;
 
     /***************************************************************************************
      * Constructor
@@ -250,8 +803,12 @@ class DeviceInfo {
      * Parameters:
      *      location : string - description of the device location
      **************************************************************************************/
-    constructor(location) {
-        _setDefaultDeviceInfo(location);
+    constructor(bull) {
+        _setDeviceInfo();
+        _bull = bull;
+
+        // Open Listeners
+        _bull.on("getDevInfo", _sendDeviceInfo.bindenv(this));
     }
 
     /***************************************************************************************
@@ -263,237 +820,64 @@ class DeviceInfo {
         return _devInfo;
     }
 
-    /***************************************************************************************
-     * setDevInfo
-     * Returns: updated device info table
-     * Parameters:
-     *      info: table - new device info
-     **************************************************************************************/
-    function setDevInfo(info) {
-        foreach(key, value in info) {
-            _devInfo[key] = value;
-        }
-        return _devInfo
-    }
-
     // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
 
+
     /***************************************************************************************
-     * _setDefaultDeviceInfo - mac address, sw version, device id, location
+     * _sendDeviceInfo
+     * Returns: null
+     * Parameters:
+     *      msg: table - message received from bullwinkle listener
+     *      reply: function that sends a reply to bullwinle message sender
+     **************************************************************************************/
+    function _sendDeviceInfo(msg, reply) {
+        reply(_devInfo);
+    }
+
+    /***************************************************************************************
+     * _setDeviceInfo - mac address, sw version, device id, location
      * Returns: this
      * Parameters:
-     *      location : string - description of the device location
      **************************************************************************************/
-    function _setDefaultDeviceInfo(location) {
+    function _setDeviceInfo() {
         if (typeof _devInfo != "table") _devInfo = {};
         _devInfo.mac <- imp.getmacaddress();
         _devInfo.swVersion <- imp.getsoftwareversion();
         _devInfo.devID <- hardware.getdeviceid();
-        _devInfo.location <- location;
+        _devInfo.location <- DEVICE_LOCATION;
 
         return this;
     }
 }
 
-
 /***************************************************************************************
- * Application Class:
- *      Sends Device Info to agent
- *      Starts off reading loop
- *      Sends readings to agent
+ * SmartFridgeDevice Class:
+ *      Extends SmartFrigeApp to include support for DeviceInfo class
  **************************************************************************************/
-class Application {
-    static DEFAULT_READING_INTERVAL = 3;
-    static DEFAULT_REPORTING_INTERVAL = 15;
-    static DEFAULT_LX_THRESHOLD = 50; // LX level indicating door open
+class SmartFridgeDevice extends SmartFridgeApp {
 
-    _bull = null;
-    _cm = null;
-    _tail = null;
     _dev = null;
-
-    _readinInt = null;
-    _reportingInt = null;
-    _lxThreshold = null;
-    _doorOpen = null;
-    _reportingTimer = null;
-
-    /***************************************************************************************
-     * constructor
-     * Returns: null
-     * Parameters:
-     *      readingInt : integer - time interval in seconds between readings
-     *      reportingInt : integer - time interval in seconds between connections to agent
-     **************************************************************************************/
-    constructor(readingInt = null, reportingInt = null) {
-        // configure class variables
-        _readinInt = (readingInt == null) ? DEFAULT_READING_INTERVAL : readingInt;
-        _reportingInt = (reportingInt == null) ? DEFAULT_REPORTING_INTERVAL : reportingInt;
-
-        _initializeClasses();
-        imp.wakeup(0.2, _getLXThreshold.bindenv(this));
-
-        // Give agent time to configure watson then send device info to
-        // agent and disconnect from server to preserve power
-        imp.wakeup(5, sendDeviceInfo.bindenv(this));
-    }
-
-
-    /***************************************************************************************
-     * run - starts reading loop, starts reporting loop
-     * Returns: null
-     * Parameters: none
-     **************************************************************************************/
-    function run() {
-        // set doorOpen flag
-        _doorOpen = false;
-
-        // start reading loop
-        _tail.takeReadings(checkForDoorEvent.bindenv(this));
-
-        // send readings everytime we connect to server
-        _cm.onConnect(sendReadings.bindenv(this));
-
-        // wait one cycle then connect and send readings
-        _reportingTimer = imp.wakeup(_reportingInt, _cm.connect.bindenv(_cm));
-    }
-
-    /***************************************************************************************
-     * checkForDoorEvent
-     * Returns: null
-     * Parameters:
-     *      reading : table of sensor readings
-     **************************************************************************************/
-    function checkForDoorEvent(reading) {
-        // set default if no lighting threshold has been received from agent
-        if (_lxThreshold == null) _lxThreshold = DEFAULT_LX_THRESHOLD;
-
-        if ("brightness" in reading && reading.brightness > _lxThreshold) {
-            // cancel the reporting timer
-            imp.cancelwakeup(_reportingTimer);
-            _doorOpen = true;
-            // wake up now and send change in door status
-            _cm.connect();
-        } else if (_doorOpen) {
-            // door was just closed
-            // cancel the reporting timer
-            imp.cancelwakeup(_reportingTimer);
-            _doorOpen = false;
-            // wake up now and send change in door status
-            _cm.connect();
-        }
-    }
-
-    /***************************************************************************************
-     * sendReadings - send readings from local storage to agent
-     *                then clear local storage & disconnect
-     * Returns: null
-     * Parameters: none
-     **************************************************************************************/
-    function sendReadings() {
-        // check for readings
-        if ("nv" in getroottable() && "readings" in nv) {
-            // send readings to agent
-            _bull.send("readings", nv.readings)
-                // if agent receives readings
-                // erase them from local storage then disonncet
-                .onReply(function(msg) {
-                    nv.readings = [];
-                    _cm.disconnect();
-                }.bindenv(this))
-                // if connection fails just disconnect
-                // readings will be kept and sent on next connection
-                .onFail(function(err, msg, retry) {
-                    _cm.disconnect();
-                }.bindenv(this));
-        } else {
-            // if no readings are available disconnect
-            _cm.disconnect();
-        }
-
-        // schedule next connection
-        _reportingTimer = imp.wakeup(_reportingInt, _cm.connect.bindenv(_cm));
-    }
-
-    /***************************************************************************************
-     * sendDeviceInfo
-     * Returns: this
-     * Parameters:
-     *      info (optional) : table - additional/new device info to send to agent
-     **************************************************************************************/
-    function sendDeviceInfo(info = null) {
-        // add new device info to local copy
-        if (typeof info == "table") _dev.setDevInfo(info);
-
-        // send device info to agent
-        if( _cm.isConnected() ) {
-            _updateDeviceInfo();
-        } else {
-            _cm.onNextConnect(function() {
-                _updateDeviceInfo();
-            }.bindenv(this)).connect();
-        }
-        return this;
-    }
-
-    // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
 
     /***************************************************************************************
      * _initializeClasses
      * Returns: null
      * Parameters: none
      **************************************************************************************/
-    function _initializeClasses() {
+    function _initializeClasses(sensors) {
         // agent/device communication helper library
         _bull = Bullwinkle();
-        // connection helper library
-        _cm = ConnectionManager({"blinkupBehavior" : ConnectionManager.BLINK_ALWAYS});
         // Class to manage sensors
-        _tail = EnvTail(true, true, false, _readinInt, _cm);
-        // Class to manage device info
-        _dev = DeviceInfo("Los Altos EI HQ - Kitchen");
+        _exKit = ExplorerKitSensors(sensors);
+        // Class to manage and send agent device info
+        _dev = DeviceInfo(_bull);
     }
 
-    /***************************************************************************************
-     * _updateDeviceInfo
-     * Returns: null
-     * Parameters: none
-     **************************************************************************************/
-    function _updateDeviceInfo() {
-        // send request to agent to update device info
-        // disconnects when finished
-        _bull.send("updateDevInfo", _dev.getDeviceInfo())
-            .onReply(function(msg) {
-                _cm.disconnect();
-            }.bindenv(this))
-            .onFail(function(err, msg, retry) {
-                server.error("Update Device Info Failed.")
-                _cm.disconnect();
-            }.bindenv(this));
-    }
-
-    /***************************************************************************************
-     * _getLXThreshold
-     * Returns: null
-     * Parameters: none
-     **************************************************************************************/
-    function _getLXThreshold() {
-        _bull.send("lxThreshold", null)
-            .onReply(function(message) {
-                if (message.data != null) {
-                    _lxThreshold = message.data;
-                }
-            }.bindenv(this));
-    }
 }
-
 
 // RUNTIME
 // ----------------------------------------------
 
-// Create instances of our classes
-app <- Application();
-
-// Give agent time to configure watson device
-// Then start the sensor reading & connection loops
-imp.wakeup(5, app.run.bindenv(app));
+// Select sensors to initialize
+local sensors = [ ExplorerKitSensors.TEMP_HUMID,
+                  ExplorerKitSensors.ACCELEROMETER ];
+SmartFridgeDevice(sensors);

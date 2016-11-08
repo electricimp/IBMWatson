@@ -1,52 +1,35 @@
+//line 1 "agent.nut"
 #require "bullwinkle.class.nut:2.3.0"
 #require "promise.class.nut:3.0.0"
 #require "IBMWatson.class.nut:1.0.0"
 
-
+//line 1 "SmartFrigDataManager.class.nut"
 /***************************************************************************************
  * SmartFrigDataManager Class:
- *      Handle incoming device readings
- *      Set sensor threshold values
+ *      Handle incoming device readings and events
  *      Set callback handlers for events and streaming data
- *      Check for temperature, humidity, and door events
  *      Average temperature and humidity readings
+ *
+ * Dependencies
+ *      Bullwinle (passed into the constructor)
  **************************************************************************************/
 class SmartFrigDataManager {
 
-    // Default settings
-    static DEFAULT_LX_THRESHOLD = 50; // LX level indicating door open
-    static DEFAULT_TEMP_THRESHOLD = 11;
-    static DEFAULT_HUMID_THRESHOLD = 70;
+    static DEBUG_LOGGING = true;
 
-    // NOTE: changing the device reading or reporting intervals will impact timing of event and alert conditions
-    static DOOR_OPEN_ALERT = 10; // Number of reading cycles before activating a door alert (currently 30s: DOOR_OPEN_ALERT * device reading interval = seconds before sending door alert)
-    static CLEAR_DOOR_OPEN_EVENT = 180; // Clear door open event after num seconds (prevents temperature or humidity alerts right after is opened)
-    static TEMP_ALERT_CONDITION = 300; // Number of seconds the temperature must be over threshold before triggering event
-    static HUMID_ALERT_CONDITION = 300; // Number of seconds the humidity must be over threshold before triggering event
+    // Event types (these should match device side event types in SmartFrigDataManager)
+    static EVENT_TYPE_TEMP_ALERT = "temperaure alert";
+    static EVENT_TYPE_HUMID_ALERT = "humidity alert";
+    static EVENT_TYPE_DOOR_ALERT = "door alert";
+    static EVENT_TYPE_DOOR_STATUS = "door status";
 
-    // Class variables
-    _bull = null;
-
-    // Threshold varaibles
-    _tempThreshold = null;
-    _humidThreshold = null;
-    _lxThreshold = null;
-    _thresholdsUpdated = null;
-
-    // Alert flags and counters
-    _doorOpenTS = null;
-    _doorOpenCounter = null;
-    _doorOpenAlertTriggered = null;
-    _tempAlertTriggered = null;
-    _humidAlertTriggered = null;
-    _tempEventTime = null;
-    _humidEventTime = null;
-
-    // Event handlers
-    _doorOpenHandler = null;
     _streamReadingsHandler = null;
+    _doorOpenAlertHandler = null;
     _tempAlertHandler = null;
     _humidAlertHandler = null;
+
+    // Class instances
+    _bull = null;
 
     /***************************************************************************************
      * Constructor
@@ -56,12 +39,6 @@ class SmartFrigDataManager {
      **************************************************************************************/
     constructor(bullwinkle) {
         _bull = bullwinkle;
-        // set default thresholds
-        setThresholds(DEFAULT_TEMP_THRESHOLD, DEFAULT_HUMID_THRESHOLD, DEFAULT_LX_THRESHOLD);
-
-        // set event/alert counter
-        _doorOpenCounter = 0;
-
         openListeners();
     }
 
@@ -71,33 +48,7 @@ class SmartFrigDataManager {
      * Parameters: none
      **************************************************************************************/
     function openListeners() {
-        _bull.on("readings", _readingsHandler.bindenv(this));
-        _bull.on("lxThreshold", _lxThresholdHandler.bindenv(this));
-    }
-
-    /***************************************************************************************
-     * setThresholds
-     * Returns: null
-     * Parameters:
-     *      temp : integer - new tempertature threshold value
-     *      humid : integer - new humid threshold value
-     *      lx : integer - new light level door  value
-     **************************************************************************************/
-    function setThresholds(temp, humid, lx) {
-        _tempThreshold = temp;
-        _humidThreshold = humid;
-        _lxThreshold = lx;
-        _thresholdsUpdated = true;
-    }
-
-    /***************************************************************************************
-     * setDoorOpenHandler
-     * Returns: null
-     * Parameters:
-     *      cb : function - called when door open alert triggered
-     **************************************************************************************/
-    function setDoorOpenHandler(cb) {
-        _doorOpenHandler = cb;
+        _bull.on("update", _readingsHandler.bindenv(this));
     }
 
     /***************************************************************************************
@@ -108,6 +59,16 @@ class SmartFrigDataManager {
      **************************************************************************************/
     function setStreamReadingsHandler(cb) {
         _streamReadingsHandler = cb;
+    }
+
+    /***************************************************************************************
+     * setDoorOpenAlertHandler
+     * Returns: null
+     * Parameters:
+     *      cb : function - called when door open alert triggered
+     **************************************************************************************/
+    function setDoorOpenAlertHandler(cb) {
+        _doorOpenAlertHandler = cb;
     }
 
     /***************************************************************************************
@@ -130,19 +91,24 @@ class SmartFrigDataManager {
         _humidAlertHandler = cb;
     }
 
+    // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
+
     /***************************************************************************************
-     * _lxThresholdHandler
+     * _getAverage
      * Returns: null
      * Parameters:
-     *      message : table - message received from bullwinkle listener
-     *      reply: function that sends a reply to bullwinle message sender
+     *      readings : table of readings
+     *      type : key from the readings table for the readings to average
+     *      numReadings: number of readings in the table
      **************************************************************************************/
-    function _lxThresholdHandler(message, reply) {
-        if (_thresholdsUpdated) {
-            reply(_lxThreshold);
-            _thresholdsUpdated = false;
+    function _getAverage(readings, type, numReadings) {
+        if (numReadings == 1) {
+            return readings[0][type];
         } else {
-            reply(null);
+            local total = readings.reduce(function(prev, current) {
+                    return (!(type in prev)) ? prev + current[type] : prev[type] + current[type];
+                })
+            return total / numReadings;
         }
     }
 
@@ -154,161 +120,68 @@ class SmartFrigDataManager {
      *      reply: function that sends a reply to bullwinle message sender
      **************************************************************************************/
     function _readingsHandler(message, reply) {
-        // grab readings array from message
-        local readings = message.data;
+        local data = message.data;
+        local streamingData = { "ts" : time() };
+        local numReadings = data.readings.len();
 
-        // set up variables for calculating reading average
-        local tempAvg = 0;
-        local humidAvg = 0
-        local numReadings = 0;
-
-        // set up variables for door event
-        local doorOpen = null;
-        local ts = null;
-
-        // process readings
-        // reading table keys : "brightness", "humidity", "temperature", "ts"
-        foreach(reading in readings) {
-            // calculate temperature and humidity totals
-            if ("temperature" in reading && "humidity" in reading) {
-                numReadings++;
-                tempAvg += reading.temperature;
-                humidAvg += reading.humidity;
-            }
-
-            // get time stamp of reading
-            ts = reading.ts;
-
-            // determine door status
-            if ("brightness" in reading) doorOpen = _checkDoorEvent(ts, reading.brightness);
-        }
-
-        if (numReadings != 0) {
-            // average the temperature and humidity readings
-            tempAvg = tempAvg/numReadings;
-            humidAvg = humidAvg/numReadings;
-
-            // check for events
-            _checkTempEvent(tempAvg, ts);
-            _checkHumidEvent(humidAvg, ts);
-        }
-
-        // send reading to handler
-        _streamReadingsHandler({"temperature" : tempAvg, "humidity" : humidAvg, "door" : doorOpen}, ts);
-        // send ack to device (device erases this set of readings when ack received)
+        // send ack to device (device erases this set of readings/events when ack received)
         reply("OK");
-    }
 
-    /***************************************************************************************
-     * _checkTempEvent
-     * Returns: null
-     * Parameters:
-     *      reading : float - a temperature reading
-     **************************************************************************************/
-    function _checkTempEvent(reading, ts) {
-        // check for temp event
-        if (reading > _tempThreshold) {
-            // check that frig door hasn't been open recently & that alert hasn't been sent
-            if (_doorOpenTS == null && !_tempAlertTriggered) {
-                // create event timer
-                if (_tempEventTime == null) {
-                    _tempEventTime = ts + TEMP_ALERT_CONDITION;
-                }
-                // check that alert conditions have exceeded the time needed to trigger alert
-                if (ts >= _tempEventTime) {
-                    // Trigger Temp Alert
-                    _tempAlertHandler(reading, ts, _tempThreshold);
-                    // Set flag so we don't trigger the same alert again
-                    _tempAlertTriggered = true;
-                    // Reset Temp Event timer
-                    _tempEventTime = null;
-                }
-            }
-        } else {
-            // Reset Temp Alert Conditions
-            _tempAlertTriggered = false;
-            _tempEventTime = null;
+        if (DEBUG_LOGGING) {
+            server.log("in readings handler")
+            server.log(http.jsonencode(data.readings));
+            server.log(http.jsonencode(data.doorStatus));
+            server.log(http.jsonencode(data.events));
+            server.log("Current time: " + time())
         }
-    }
 
-    /***************************************************************************************
-     * _checkHumidEvent
-     * Returns: null
-     * Parameters:
-     *      reading : float - a humidity reading
-     **************************************************************************************/
-    function _checkHumidEvent(reading, ts) {
-        // check for humidity event
-        if (reading > _humidThreshold) {
-            // check that frig door hasn't been open recently & that alert hasn't been sent
-            if (_doorOpenTS == null && !_humidAlertTriggered) {
-                // create event timer
-                if (_humidEventTime == null) {
-                    _humidEventTime = ts + HUMID_ALERT_CONDITION;
-                }
-                // check that alert conditions have exceeded the time needed to trigger alert
-                if ( ts >= _humidEventTime) {
-                    // Trigger Humidity Alert
-                    _humidAlertHandler(reading, ts, _humidThreshold);
-                    // Set flag so we don't trigger the same alert again
-                    _humidAlertTriggered = true;
-                    // Reset Humidity timer
-                    _humidEventTime = null;
-                }
-            }
-        } else {
-            // Reset Hmidity Alert Conditions
-            _humidAlertTriggered = false;
-            _humidEventTime = null;
+        if ("readings" in data && numReadings > 0) {
+
+            // Update streaming data table with temperature and humidity averages
+            streamingData.temperature <- _getAverage(data.readings, "temperature", numReadings);
+            streamingData.humidity <- _getAverage(data.readings, "humidity", numReadings);
         }
-    }
 
-    /***************************************************************************************
-     * _checkDoorEvent
-     * Returns: sting - door status
-     * Parameters:
-     *      lxLevel : float - a light reading
-     *      readingTS : integer - the timestamp of the reading
-     **************************************************************************************/
-    function _checkDoorEvent(readingTS, lxLevel = null) {
-        // Boolean if door open event occurred
-        local doorOpen = (lxLevel == null || lxLevel > _lxThreshold);
+        if ("doorStatus" in data) {
+            // Update streaming data table
+            streamingData.door <- data.doorStatus.currentStatus;
+        }
 
-        // check if door open
-        if (doorOpen) {
-            _doorOpenCounter++;
-            // check if door timer started
-            if (!_doorOpenTS) {
-                // start door timer
-                _doorOpenTS = readingTS;
-            // check that door alert conditions have been met
-            } else if (!_doorOpenAlertTriggered && _doorOpenCounter > DOOR_OPEN_ALERT) {
-                // trigger door open alert
-                _doorOpenAlertTriggered = readingTS;
-                _doorOpenHandler(readingTS - _doorOpenTS);
-            }
-        } else {
-            // since door is closed, reset door open alert conditions
-            _doorOpenCounter = 0;
-            _doorOpenAlertTriggered = null;
+        // send streaming data to handler
+        _streamReadingsHandler(streamingData);
 
-            // check that door timer can be reset
-            if (_doorOpenTS && (readingTS - _doorOpenTS) >= CLEAR_DOOR_OPEN_EVENT ) {
-                // since door closed for set ammount of time, reset door event timer
-                _doorOpenTS = null;
+        if ("events" in data && data.events.len() > 0) {
+            // handle events
+            foreach (event in data.events) {
+                switch (event.type) {
+                    case EVENT_TYPE_TEMP_ALERT :
+                        _tempAlertHandler(event);
+                        break;
+                    case EVENT_TYPE_HUMID_ALERT :
+                        _humidAlertHandler(event);
+                        break;
+                    case EVENT_TYPE_DOOR_ALERT :
+                        _doorOpenAlertHandler(event);
+                        break;
+                    case EVENT_TYPE_DOOR_STATUS :
+                        break;
+                }
             }
         }
-        return (doorOpen) ? "Open" : "Closed";
     }
 
 }
-
+//line 6 "agent.nut"
 
 /***************************************************************************************
  * SmartFrigDeviceMngr Class:
- *      Handle incoming device info
+ *      Requests/stores info from device
  *      Create DeviceType on Watson platform
  *      Create/Update Device on Watson platform
+ *      Creates a flag indicating if Device has been created in Watson
+ *
+ * Dependencies
+ *      Bullwinkle Library
  **************************************************************************************/
 class SmartFrigDeviceMngr {
     // Watson Device Information
@@ -337,23 +210,42 @@ class SmartFrigDeviceMngr {
         _bull = bullwinkle;
         _watson = watson;
 
-        // Set variable data types
-        _meta = {};
-        _deviceInfo = {};
-
         setBasicDevInfo();
-        createDevType()
-            .then(function(status) {
-                server.log(http.jsonencode(status));
-                // create device
+
+        // Create Watson device type and get info from device
+        local que = [createDevType(), imp.wakeup(0.5, getDevInfo.bindenv(this))];
+        // Then create device in Watson
+        Promise.all(que)
+            .then(function(msg) {
+                server.log(msg);
                 createDev();
             }.bindenv(this),
-            function(rejected) {
+            function(reject){
                 server.error(rejected);
             }.bindenv(this));
+    }
 
-        // Open Listener
-        _bull.on("updateDevInfo", _updateDevInfoHandler.bindenv(this));
+    /***************************************************************************************
+     * getDevInfo
+     * Returns: Promise that resolves with status message
+     * Parameters: none
+     **************************************************************************************/
+    function getDevInfo() {
+        return Promise(function(resolve, reject) {
+             _bull.send("getDevInfo", null)
+                .onReply(function(msg) {
+                    if (msg.data != null) {
+                        _updateDevInfo(msg.data);
+                        return resolve("Received Device Info.")
+                    } else {
+                        return resolve("Device Info Error.")
+                    }
+                }.bindenv(this))
+                .onFail(function(err, msg, retry) {
+                    // TODO: add retry
+                    return resolve("Device Info Error.")
+                }.bindenv(this))
+        }.bindenv(this))
     }
 
     /***************************************************************************************
@@ -384,21 +276,6 @@ class SmartFrigDeviceMngr {
                 }
             }.bindenv(this));
         }.bindenv(this));
-    }
-
-    /***************************************************************************************
-     * setDeviceInfo
-     * Returns: this
-     * Parameters:
-     *      info: table - table with device information
-     **************************************************************************************/
-    function setDeviceInfo(info) {
-        deviceID = info.devID.tostring();
-        _deviceInfo = { "manufacturer" : DEVICE_MANUFACTURER,
-                        "descriptiveLocation" : info.location,
-                        "fwVersion" : info.swVersion };
-        _meta = { "macAddress" : info.mac };
-        return this;
     }
 
     /***************************************************************************************
@@ -451,49 +328,47 @@ class SmartFrigDeviceMngr {
         }.bindenv(this));
     }
 
+    // ------------------------- PRIVATE FUNCTIONS ------------------------------------------
+
     /***************************************************************************************
-     * _updateDevInfoHandler
+     * _updateDevInfo
      * Returns: this
      * Parameters:
-     *      message: table - message received from bullwinkle listener
-     *      reply: function that sends a reply to bullwinle message sender
+     *      info: table with new device info
      **************************************************************************************/
-    function _updateDevInfoHandler(message, reply) {
-        // store device info locally
-        if (typeof message.data == "table") {
-            local info = message.data;
-            if ("devID" in info) {
-                deviceID = info.devID.tostring();
-                info.rawdelete("devID");
-            }
-            if ("location" in info) {
-                _deviceInfo.descriptiveLocation <- info.location;
-                info.rawdelete("location");
-            }
-            if ("swVersion" in info) {
-                _deviceInfo.fwVersion <- info.swVersion;
-                info.rawdelete("swVersion");
-            }
-            if ("mac" in info) {
-                _meta.macAddress <- info.mac;
-                info.rawdelete("mac");
-            }
-            foreach(key, value in info) {
-                _meta[key] <- value;
-            }
+    function _updateDevInfo(info) {
+        if ("devID" in info) {
+            deviceID = info.devID.tostring();
+            info.rawdelete("devID");
         }
-        // Create/Update Watson device
-        createDev();
-        // Send ack to device
-        reply("OK");
+        if ("location" in info) {
+            _deviceInfo.descriptiveLocation <- info.location;
+            info.rawdelete("location");
+        }
+        if ("swVersion" in info) {
+            _deviceInfo.fwVersion <- info.swVersion;
+            info.rawdelete("swVersion");
+        }
+        if ("mac" in info) {
+            _meta.macAddress <- info.mac;
+            info.rawdelete("mac");
+        }
+        foreach(key, value in info) {
+            _meta[key] <- value;
+        }
     }
 
 }
 
-
 /***************************************************************************************
  * Application Class:
- *      Sends data and alerts to Watson platform
+ *      Sends data and alerts to IBM Watson IoT platform
+ *
+ * Dependencies
+ *      Bullwinkle Library
+ *      IBMWatson Library
+ *      SmartFrigDeviceMngr Class
+ *      SmartFrigDataManager Class
  **************************************************************************************/
 class Application {
     // Event IDs
@@ -552,7 +427,7 @@ class Application {
      **************************************************************************************/
     function setDataMngrHandlers() {
         // set Data Manager handlers to the local handler functions
-        dataMngr.setDoorOpenHandler(doorOpenHandler.bindenv(this));
+        dataMngr.setDoorOpenAlertHandler(doorOpenHandler.bindenv(this));
         dataMngr.setStreamReadingsHandler(streamReadingsHandler.bindenv(this));
         dataMngr.setTempAlertHandler(tempAlertHandler.bindenv(this));
         dataMngr.setHumidAlertHandler(humidAlertHandler.bindenv(this));
@@ -565,13 +440,13 @@ class Application {
      *      reading : table - temperature, humidity and door status
      *      ts : integer - epoch time stamp
      **************************************************************************************/
-    function streamReadingsHandler(reading, ts) {
+    function streamReadingsHandler(reading) {
         // log the incoming reading
         server.log(http.jsonencode(reading));
 
         // set up data structure expected by Watson
         local data = { "d": reading,
-                       "ts": watson.formatTimestamp(ts) };
+                       "ts": watson.formatTimestamp(reading.ts) };
 
         // Post data if Watson device configured
         if (devMngr.deviceConfigured) {
@@ -583,43 +458,33 @@ class Application {
      * doorOpenHandler
      * Returns: null
      * Parameters:
-     *      doorOpenFor : integer - number of seconds the door has been open for
+     *      event: table with event details
      **************************************************************************************/
-    function doorOpenHandler(doorOpenFor) {
-        local description = format("Door open for %s seconds.", doorOpenFor.tostring());
-        server.log(format("%s: %s", DOOR_OPEN_ALERT, description));
-
-        sendAlert(DOOR_OPEN_EVENT_ID, DOOR_OPEN_ALERT, description);
+    function doorOpenHandler(event) {
+        server.log(format("%s: %s", DOOR_OPEN_ALERT, event.description));
+        sendAlert(DOOR_OPEN_EVENT_ID, DOOR_OPEN_ALERT, event.description, event.ts);
     }
 
     /***************************************************************************************
      * tempAlertHandler
      * Returns: null
      * Parameters:
-     *      latestReading : float - current tempertature reading
-     *      alertTiggeredTime : integer - epoch time stamp of alert
-     *      threshold : integer - temperature threshold value
+     *      event: table with event details
      **************************************************************************************/
-    function tempAlertHandler(latestReading, alertTiggeredTime, threshold) {
-        local description = format("Temperature %s °C above threshold.", (latestReading - threshold).tostring());
-        server.log(format("%s: %s", TEMP_ALERT, description));
-
-        sendAlert(TEMP_ALERT_EVENT_ID, TEMP_ALERT, description, alertTiggeredTime);
+    function tempAlertHandler(event) {
+        server.log(format("%s: %s", TEMP_ALERT, event.description));
+        sendAlert(TEMP_ALERT_EVENT_ID, TEMP_ALERT, event.description, event.ts);
     }
 
     /***************************************************************************************
      * humidAlertHandler
      * Returns: null
      * Parameters:
-     *      latestReading : float - current humidity reading
-     *      alertTiggeredTime : integer - epoch time stamp of alert
-     *      threshold : integer - humidity threshold value
+     *      event: table with event details
      **************************************************************************************/
-    function humidAlertHandler(latestReading, alertTiggeredTime, threshold) {
-        local description = format("Humidity %s above threshold.", (latestReading - threshold).tostring());
-        server.log(format("%s: %s", HUMID_ALERT, description));
-
-        sendAlert(HUMID_ALERT_EVENT_ID, HUMID_ALERT, description, alertTiggeredTime);
+    function humidAlertHandler(event) {
+        server.log(format("%s: %s", HUMID_ALERT, event.description));
+        sendAlert(HUMID_ALERT_EVENT_ID, HUMID_ALERT, event.description, event.ts);
     }
 
     /***************************************************************************************
@@ -653,7 +518,7 @@ class Application {
      **************************************************************************************/
     function watsonResponseHandler(err, res) {
         if(err) server.error(err);
-        if(res.statuscode == 200) server.log("Watson request successful");
+        if(res.statuscode == 200) server.log("Watson request successful.");
     }
 }
 

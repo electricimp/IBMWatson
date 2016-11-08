@@ -14,14 +14,13 @@ Below are detailed steps on how to connect an Electric Imp with environmental se
  3. Smartphone with the Electric Imp app ([iOS](https://itunes.apple.com/us/app/electric-imp/id547133856) or [Android](https://play.google.com/store/apps/details?id=com.electricimp.electricimp))
  4. A free [Electric Imp developer account](https://ide.electricimp.com/login)
  5. A [IBM Bluemix account](https://console.ng.bluemix.net/registration/)
- 6. An Electric Imp developer kit - to purchase email watsonIoT@electricimp.com
- 7. [USB AC adapter](https://www.amazon.com/Omni-Universal-Adapter-Charger-Samsung/dp/B00YG0QALS/ref=sr_1_2?ie=UTF8&qid=1470954944&sr=8-2&keywords=usb+ac+adapter+5v) like the type used to charge a cell phone
- 8. [Electrical tape](https://www.amazon.com/Duck-299006-4-Inch-Utility-Electrical/dp/B001B19JLS/ref=sr_1_1?s=industrial&ie=UTF8&qid=1470867277&sr=1-1)
+ 6. An Electric Imp Explorer kit - to purchase email watsonIoT@electricimp.com
+ 7. Three AA batteries
 
 ## Step-by-step
 
 ### Step 1 - What is demonstrated in this example?
-Use an Electric Imp to collect temperature, humidity and light sensor data.  Analyze the sensor data to determine if your refrigerator compressor is working properly and to track if your refrigerator door has been left open.  Upload data to the Watson IoT platform to monitor and visualize your refrigerator in real time.
+Use an Electric Imp to collect temperature, humidity, accelerometer and light sensor data.  Analyze the sensor data to determine if your refrigerator compressor is working properly and to track if your refrigerator door has been left open.  Upload data to the Watson IoT platform to monitor and visualize your refrigerator in real time.
 
 ### Step 2 - Create a Watson IoT Service
 
@@ -72,11 +71,10 @@ Once you are in the service dashboard, there are 3 items you need to copy down. 
 
 #### Set Up Hardware
 
-1. Plug the Imp001 into the April breakout board
-2. Connect the Env Sensor tail to the April breakout board
-3. Power up your Imp with the USB cable and power adapter.
+1. Plug the Imp001 into the Explorer Kit Board
+3. Power up your Imp with the AA batteries.
 
-<img src="http://i.imgur.com/erBvo7d.jpg" width="400">
+![Explorer Kit](http://i.imgur.com/6JssX74.png)
 
 When the imp is first powered on it will blink amber/red.
 
@@ -96,28 +94,29 @@ For more information on BlinkUp visit the Electric Imp [Dev Center](https://elec
 
 ### Step 4 - Connect your Electric Imp to Watson IoT
 
-In your web browser log into the [Electric Imp IDE](https://ide.electricimp.com/login) using your Electric Imp developer account
+In your web browser log into the [Electric Imp IDE](https://ide.electricimp.com/login) using your Electric Imp developer account.
 
-Click the **Create New Model** button
-![Empty IDE](http://i.imgur.com/zXAyeEN.png)
+Click the **+** button to create a new model
+
+![Empty IDE](http://i.imgur.com/Ui7w8eG.png)
 
 In the pop-up enter the following information:
 
-1. A name for your code model (ie RefrigeratorMonitor)
+1. A name for your code model (ie Smart Refrigerator)
 2. Select the checkbox next to your device ID, this assigns your device to this code model
 3. Click **Create Model** button
 
 To get you started we have some example code for an IBM Watson Smart Refrigerator.  This code can be found in Electric Imp's [IBMWatson Github repository](https://github.com/electricimp/IBMWatson/tree/master/Examples/SmartRefrigerator).
 
-Copy and paste the IBM Watson Smart Refrigerator example code into the agent and device coding windows.  The agent.nut file should go in the agent coding window, the device.nut file in the device coding window. Then in the sidebar select your device.
+Copy and paste the IBM Watson Smart Refrigerator example code into the agent and device coding windows.  The agent.nut file should go in the agent coding window, the device.nut file in the device coding window.
 
-![IDE code windows](http://i.imgur.com/Ff8ISdM.png)
+![IDE code windows](http://i.imgur.com/yiCmQZu.png)
 
 Scroll the the bottom of the agent code to find *Watson API Auth Keys* variables. Enter your **API Key**, **Authentication Token**, and **Organization ID** from **Step 2** into the corresponding variables.
 
 Click **Build and Run** to save and launch the code
 
-![IDE with code](http://i.imgur.com/xolVAeJ.png)
+![IDE with code](http://i.imgur.com/zlJaIaw.png)
 
 
 ### 5.  Create Visualizations In the Watson IoT Dashboard
@@ -219,34 +218,13 @@ Your final dashboard should look like this:
 
 ### 6.  Install the Imp in your Refrigerator
 
-Open your refrigerator and tape the Imp and Env Tail inside with the sensors facing away from the refrigerator ceiling/wall.
+Open your refrigerator and place the Imp on a shelf in the door.
 
-Run the USB cable to the outside of the refrigerator and plug into power.
-
-![Imp in refrigerator](http://i.imgur.com/BUuEpjt.png)
+![Imp In Fridge](http://i.imgur.com/z5llZBg.png)
 
 ### 7.  Optional Improvements
 
-####Basic
+Your refrigerator is now connected to the internet. As you begin to gather data for your refrigerator you should adjust the static variables in your device SmartFridgeApp class to further customize your integration.
 
-Swap out the mini USB cable with a thinner or [flat cable](https://www.amazon.com/YCS-Basics-USB-Nickle-Plated/dp/B00FHBW7TO/ref=sr_1_1?s=pc&ie=UTF8&qid=1471988739&sr=1-1&keywords=mini+usb+flat).
-
-####Advanced
-
-Make your Imp battery powered.  This step requires basic soldering skills and tools.
-
-###### Additional Ingredients
-
- - Soldering Iron
- - Solder
- - [Battery Connector](https://www.amazon.com/Parts-Express-9V-Battery-Clip/dp/B0002ZPFU8/ref=pd_sim_sbs_23_2?ie=UTF8&psc=1&refRID=2HWR7W17XTZ07Y5P6398)
- - [9v battery](https://www.amazon.com/Duracell-Alkaline-Battery-Pack-Mn1604/dp/B0039NOKZQ/ref=pd_sim_60_29?ie=UTF8&psc=1&refRID=H4SKBFB8YMVCDNJW9RQ3)
-
-###### Steps
-
- - Solder the red wire on the battery connector to the P+ pad on the April
- - Solder the black wire on the battery connector to the P- pad on the April
- - Move the jumper on the April to BATT
- - Plug the 9v Battery into the connector
-
-<img src="http://i.imgur.com/t2JIDuP.png" width="400">
+* Adjust the temperature, humidity, and lighting thresholds to optimize for your frigde
+* Adjust the reading and reporting times to optimize power usage
