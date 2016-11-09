@@ -213,7 +213,7 @@ class SmartFrigDeviceMngr {
         setBasicDevInfo();
 
         // Create Watson device type and get info from device
-        local que = [createDevType(), imp.wakeup(0.5, getDevInfo.bindenv(this))];
+        local que = [createDevType(), getDevInfo()];
         // Then create device in Watson
         Promise.all(que)
             .then(function(msg) {
