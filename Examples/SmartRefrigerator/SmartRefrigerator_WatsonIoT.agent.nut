@@ -213,7 +213,7 @@ class SmartFrigDeviceMngr {
         setBasicDevInfo();
 
         // Create Watson device type and get info from device
-        local que = [createDevType(), imp.wakeup(0.5, getDevInfo.bindenv(this))];
+        local que = [createDevType(), getDevInfo())];
         // Then create device in Watson
         Promise.all(que)
             .then(function(msg) {
@@ -232,19 +232,21 @@ class SmartFrigDeviceMngr {
      **************************************************************************************/
     function getDevInfo() {
         return Promise(function(resolve, reject) {
-             _bull.send("getDevInfo", null)
-                .onReply(function(msg) {
-                    if (msg.data != null) {
-                        _updateDevInfo(msg.data);
-                        return resolve("Received Device Info.")
-                    } else {
+            imp.wakeup(0.5, function() {
+                _bull.send("getDevInfo", null)
+                    .onReply(function(msg) {
+                        if (msg.data != null) {
+                            _updateDevInfo(msg.data);
+                            return resolve("Received Device Info.")
+                        } else {
+                            return resolve("Device Info Error.")
+                        }
+                    }.bindenv(this))
+                    .onFail(function(err, msg, retry) {
+                        // TODO: add retry
                         return resolve("Device Info Error.")
-                    }
-                }.bindenv(this))
-                .onFail(function(err, msg, retry) {
-                    // TODO: add retry
-                    return resolve("Device Info Error.")
-                }.bindenv(this))
+                    }.bindenv(this))
+            }.bindenv(this))
         }.bindenv(this))
     }
 
