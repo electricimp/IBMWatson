@@ -6,7 +6,7 @@ The IBMWatson library allows you to easily integrate your agent code with [IBM&r
 
 To use this library you will need to register an organization on the Watson IoT platform. After registering, you will be provided with a six-character organization ID. You will also need to generate an API key, and during its generation you will be presented with an authentication token. Please note that the only time you have access to this authentication token is during this set-up process. You will need the API key, authentication token and organization ID to instantiate IBMWatson objects in your agent code.
 
-**To add this library to your project, add** `#require "IBMWatson.class.nut:1.0.1"` **to the top of your agent code.**
+**To add this library to your project, add** `#require "IBMWatson.class.nut:1.1.0"` **to the top of your agent code.**
 
 ## Class Usage
 
@@ -20,7 +20,7 @@ The constructor takes three required parameters: your API key, authentication to
 
 ##### Example Code:
 ```squirrel
-#require "IBMWatson.class.nut:1.0.0"
+#require "IBMWatson.class.nut:1.1.0"
 
 const API_KEY = "<YOUR API KEY>";
 const AUTH_TOKEN = "<YOUR AUTHENTICATION TOKEN>";
