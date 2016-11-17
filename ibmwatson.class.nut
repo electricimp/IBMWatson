@@ -1,6 +1,6 @@
 class IBMWatson {
 
-    static version = [1, 0, 0];
+    static version = [1, 1, 0];
 
     static INVALID_REQUEST_ERROR = "Error: Invalid Request";
     static INVALID_AUTH_TOKEN_ERROR = "Error: Invalid Authentication Token";
@@ -12,6 +12,7 @@ class IBMWatson {
     _apiKey = null;
     _authToken = null;
     _baseURL = null;
+    _dataURL = null;
 
     /***************************************************************************************
      * Constructor
@@ -27,8 +28,13 @@ class IBMWatson {
         _authToken = authToken;
 
         // support for Watson sandbox
-        local protocol = (orgID == "quickstart") ? "http" : "https";
-        _baseURL = format("%s://%s.internetofthings.ibmcloud.com/api/%s", protocol, orgID, version);
+        if (orgID == "quickstart") {
+            _baseURL = format("http://%s.internetofthings.ibmcloud.com/api/%s", orgID, version);
+            _dataURL = format("http://%s.messaging.internetofthings.ibmcloud.com:1883/api/%s", orgID, version);
+        } else {
+            _baseURL = format("https://%s.internetofthings.ibmcloud.com/api/%s", orgID, version);
+            _dataURL = format("https://%s.messaging.internetofthings.ibmcloud.com:8883/api/%s", orgID, version);
+        }
     }
 
     /***************************************************************************************
@@ -43,12 +49,12 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function postData(typeID, deviceID, eventID, data, httpHeaders = {}, cb = null) {
-        // POST "device/types/${typeId}/devices/${deviceId}/events/${eventId}"
+        // POST to dataURL + "application/types/${typeId}/devices/${deviceId}/events/${eventId}"
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
         }
-        local url = format("%s/application/types/%s/devices/%s/events/%s", _baseURL, typeID, deviceID, eventID);
+        local url = format("%s/application/types/%s/devices/%s/events/%s", _dataURL, typeID, deviceID, eventID);
         local req = http.post(url, _createHeaders(httpHeaders), http.jsonencode(data));
         req.sendasync(function(res) {
             _processResponse(res, cb);
@@ -65,7 +71,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function addDevice(typeID, deviceInfo, httpHeaders = {}, cb = null) {
-        // POST /device/types/{typeId}/devices
+        // POST to baseURL + /device/types/{typeId}/devices
          if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -89,7 +95,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function updateDevice(typeID, deviceID, deviceInfo, httpHeaders = {}, cb = null) {
-        // PUT /device/types/{typeId}/devices/{deviceId}
+        // PUT  to baseURL + /device/types/{typeId}/devices/{deviceId}
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -111,7 +117,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function deleteDevice(typeID, deviceID, httpHeaders = {}, cb = null) {
-        // DELETE /device/types/{typeId}/devices/{deviceId}
+        // DELETE  to baseURL + /device/types/{typeId}/devices/{deviceId}
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -133,7 +139,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function getDevice(typeID, deviceID, httpHeaders = {}, cb = null) {
-        // GET /device/types/{typeId}/devices/{deviceId}
+        // GET  to baseURL + /device/types/{typeId}/devices/{deviceId}
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -154,7 +160,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function addDeviceType(typeInfo, httpHeaders = {}, cb = null) {
-        // POST /device/types
+        // POST  to baseURL + /device/types
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -176,7 +182,7 @@ class IBMWatson {
      *      cb (optional) : function - function to execute when response received
      **************************************************************************************/
     function getDeviceType(typeID, httpHeaders = {}, cb = null) {
-        // GET /device/types/{typeId}
+        // GET  to baseURL + /device/types/{typeId}
         if (typeof httpHeaders == "function") {
             cb = httpHeaders;
             httpHeaders = {};
@@ -257,7 +263,7 @@ class IBMWatson {
                 err = CONFLICT_ERROR
                 break;
             default:
-                err = UNEXPECTED_ERROR;
+                err = format("Status Code: %i, %s", statusCode, UNEXPECTED_ERROR);
         }
         return err;
     }
