@@ -1,7 +1,7 @@
 //line 1 "agent.nut"
 #require "bullwinkle.class.nut:2.3.0"
 #require "promise.class.nut:3.0.0"
-#require "IBMWatson.class.nut:1.0.0"
+#require "IBMWatson.class.nut:1.1.0"
 
 //line 1 "SmartFrigDataManager.class.nut"
 /***************************************************************************************
