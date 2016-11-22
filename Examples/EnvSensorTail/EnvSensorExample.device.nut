@@ -6,7 +6,7 @@
 #require "APDS9007.class.nut:2.2.1"
 
 #require "promise.class.nut:3.0.0"
-#require "bullwinkle.class.nut:2.3.0"
+#require "bullwinkle.class.nut:2.3.2"
 
 /***************************************************************************************
  * EnvTail Class:

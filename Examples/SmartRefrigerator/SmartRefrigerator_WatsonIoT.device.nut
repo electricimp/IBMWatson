@@ -1,7 +1,7 @@
 //line 1 "device.nut"
 // Utility Libraries
 #require "promise.class.nut:3.0.0"
-#require "bullwinkle.class.nut:2.3.0"
+#require "bullwinkle.class.nut:2.3.2"
 
 // Sensor Libraries
 // Accelerometer Library

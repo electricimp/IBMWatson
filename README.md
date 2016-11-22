@@ -6,7 +6,7 @@ The IBMWatson library allows you to easily integrate your agent code with [IBM&r
 
 To use this library you will need to register an organization on the Watson IoT platform. After registering, you will be provided with a six-character organization ID. You will also need to generate an API key, and during its generation you will be presented with an authentication token. Please note that the only time you have access to this authentication token is during this set-up process. You will need the API key, authentication token and organization ID to instantiate IBMWatson objects in your agent code.
 
-**To add this library to your project, add** `#require "IBMWatson.class.nut:1.0.0"` **to the top of your agent code.**
+**To add this library to your project, add** `#require "IBMWatson.class.nut:1.1.0"` **to the top of your agent code.**
 
 ## Class Usage
 
@@ -20,7 +20,7 @@ The constructor takes three required parameters: your API key, authentication to
 
 ##### Example Code:
 ```squirrel
-#require "IBMWatson.class.nut:1.0.0"
+#require "IBMWatson.class.nut:1.1.0"
 
 const API_KEY = "<YOUR API KEY>";
 const AUTH_TOKEN = "<YOUR AUTHENTICATION TOKEN>";
@@ -48,7 +48,7 @@ The *addDeviceType()* method creates a device type within your organization. The
 #### Example
 
 ```squirrel
-typeInfo <- { "id": "EnvTail", 
+typeInfo <- { "id": "EnvTail",
               "description" : "Electric Imp Environmental Sensor Tail" };
 
 watson.addDeviceType(typeInfo, function(error, response) {
@@ -118,7 +118,7 @@ The *addDevice()* method creates a device of the specified device type. This met
 local typeID = "EnvTail";
 local deviceID = split(http.agenturl(), "/").pop();
 device <- { "deviceId": deviceID,
-            "deviceInfo" : { "manufacturer" : "electric_imp", 
+            "deviceInfo" : { "manufacturer" : "electric_imp",
                              "descriptiveLocation" : "open_office_area" }};
 
 watson.addDevice(typeID, device, function(error, response) {
@@ -126,7 +126,7 @@ watson.addDevice(typeID, device, function(error, response) {
         server.error(error);
         return;
     }
-    
+
     server.log(http.jsonencode(response.body));
 })
 ```
@@ -163,7 +163,7 @@ watson.updateDevice(typeID, deviceID, deviceInfo, function(error, response) {
         server.error(error);
         return;
     }
-    
+
     server.log(http.jsonencode(response.body));
 })
 ```
