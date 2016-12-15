@@ -1,8 +1,11 @@
 //line 1 "agent.nut"
+// Utility Libraries
 #require "bullwinkle.class.nut:2.3.2"
 #require "promise.class.nut:3.0.0"
+// Web Integration Library
 #require "IBMWatson.class.nut:1.1.0"
 
+// Class that receives and handles data sent from device SmartFridgeApp
 //line 1 "SmartFrigDataManager.class.nut"
 /***************************************************************************************
  * SmartFrigDataManager Class:
@@ -171,7 +174,7 @@ class SmartFrigDataManager {
     }
 
 }
-//line 6 "agent.nut"
+//line 9 "agent.nut"
 
 /***************************************************************************************
  * SmartFrigDeviceMngr Class:
@@ -441,7 +444,6 @@ class Application {
      * Returns: null
      * Parameters:
      *      reading : table - temperature, humidity and door status
-     *      ts : integer - epoch time stamp
      **************************************************************************************/
     function streamReadingsHandler(reading) {
         // log the incoming reading
@@ -534,4 +536,5 @@ const API_KEY = "<YOUR API KEY HERE>";
 const AUTH_TOKEN = "<YOUR AUTHENTICATION TOKEN HERE>";
 const ORG_ID = "<YOUR ORG ID>";
 
+// Start Application
 app <- Application(API_KEY, AUTH_TOKEN, ORG_ID);
