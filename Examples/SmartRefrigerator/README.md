@@ -14,7 +14,7 @@ Below are detailed steps on how to connect an Electric Imp with environmental se
  3. Smartphone with the Electric Imp app ([iOS](https://itunes.apple.com/us/app/electric-imp/id547133856) or [Android](https://play.google.com/store/apps/details?id=com.electricimp.electricimp))
  4. A free [Electric Imp developer account](https://ide.electricimp.com/login)
  5. A [IBM Bluemix account](https://console.ng.bluemix.net/registration/)
- 6. An Electric Imp Explorer kit - to purchase email watsonIoT@electricimp.com
+ 6. An Electric Imp Explorer kit - purchase from [Amazon](https://www.amazon.com/dp/B01N47J61L/ref=cm_sw_r_cp_ep_dp_bzBwybD8TBQ36)
  7. Three AA batteries
 
 ## Step-by-step
