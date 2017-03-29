@@ -1,4 +1,4 @@
-#IBM Wason IoT
+# IBM Wason IoT
 
 The IBMWatson library allows you to easily integrate your agent code with [IBM&reg; Watson&trade; IoT Platform](https://docs.internetofthings.ibmcloud.com/getting_started/quickstart/index.html). This library provides an easy way to access a number of the IBM Watson IoT Platform HTTP REST API endpoints. Click [here](https://docs.internetofthings.ibmcloud.com/swagger/v0002.html#/) for the full documentation of the API.
 
