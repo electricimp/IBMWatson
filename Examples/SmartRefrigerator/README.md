@@ -1,4 +1,4 @@
-#Electric Imp Smart Refrigerator
+# Electric Imp Smart Refrigerator
 
 Create a connected refrigerator using an Electric Imp and the IBM Watson IoT platform.
 
@@ -14,7 +14,7 @@ Below are detailed steps on how to connect an Electric Imp with environmental se
  3. Smartphone with the Electric Imp app ([iOS](https://itunes.apple.com/us/app/electric-imp/id547133856) or [Android](https://play.google.com/store/apps/details?id=com.electricimp.electricimp))
  4. A free [Electric Imp developer account](https://ide.electricimp.com/login)
  5. A [IBM Bluemix account](https://console.ng.bluemix.net/registration/)
- 6. An Electric Imp Explorer kit - purchase from [Amazon](https://www.amazon.com/dp/B01N47J61L/ref=cm_sw_r_cp_ep_dp_bzBwybD8TBQ36)
+ 6. An Electric Imp Explorer kit - [order here](https://store.electricimp.com/collections/featured-products/products/impexplorer-developer-kit-for-ibm-watson-iot?variant=31721381266)
  7. Three AA batteries
 
 ## Step-by-step
@@ -30,7 +30,7 @@ Open [Bluemix IoT](https://new-console.ng.bluemix.net/catalog/?category=iot) pag
 
 On the [Bluemix IoT](https://new-console.ng.bluemix.net/catalog/?category=iot) page select **Internet of Things Platform** to open the form to create a project.
 
-![Bluemix IoT page](http://i.imgur.com/pd5LhfS.png)
+![Bluemix IoT page](http://i.imgur.com/nQGtohl.png)
 
 To *Create a Project* enter the following information
 
@@ -39,27 +39,24 @@ To *Create a Project* enter the following information
 3. *Pricing Plan*: you can leave set to **Free**
 4. Scroll to the bottom and click **Create**
 
-Next we need to launch the service dashboard, so after *creating a project* click **Launch dashboard** button.
+Next we need to launch the service dashboard, so after *creating a project* click **Launch** button.
 
-![Bluemix Project page](http://i.imgur.com/4zBY0Fi.png)
+![Bluemix Project page](http://i.imgur.com/YjHg0bq.png)
 
 Once you are in the service dashboard, there are 3 items you need to copy down.  These will need to be pasted into the code during **Step 4**, your **Organization ID**, **API Key**, and **Authentication Token**.
 
 1. Locating your **Organization ID**
 
   Select *Settings* tab in the sidebar
-  ![Settings Sidebar](http://i.imgur.com/pKOXxmD.png)
+  ![Settings Sidebar](http://i.imgur.com/gWy6kSH.png)
 
   Under *General* make a note or you **Organization ID**
-  ![Org ID](http://i.imgur.com/HLRfVOQ.png)
+  ![Org ID](http://i.imgur.com/ubFJtEH.png)
 
 2. Locating your **API Key** & **Authentication Token**
 
-  Select *Access* tab in the sidebar
-  ![Settings Sidebar](http://i.imgur.com/sZeEF8B.png)
-
-  Click **API Keys** tab, then **+ Generate API Key** button
-  ![API Key Tab](http://i.imgur.com/AOhHyU1.png)
+  Select *Apps* tab in the sidebar. Make sure you are in the **API Keys** tab, then click the **+ Generate API Key** button.
+  ![API Key Tab](http://i.imgur.com/Fc36kQk.png)
 
   Make note of your **API Key** & **Authentication Token**
   ![Generate API Key](http://i.imgur.com/I3Ta14z.png)
