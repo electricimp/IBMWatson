@@ -13,7 +13,7 @@ Below are detailed steps on how to connect an Electric Imp with environmental se
  2. A computer with a web browser
  3. Smartphone with the Electric Imp app ([iOS](https://itunes.apple.com/us/app/electric-imp/id547133856) or [Android](https://play.google.com/store/apps/details?id=com.electricimp.electricimp))
  4. A free [Electric Imp developer account](https://ide.electricimp.com/login)
- 5. A [IBM Bluemix account](https://console.ng.bluemix.net/registration/)
+ 5. A [IBM Cloud account](https://console.ng.bluemix.net/registration/)
  6. An Electric Imp Explorer kit - [order here](https://store.electricimp.com/collections/featured-products/products/impexplorer-developer-kit-for-ibm-watson-iot?variant=31721381266)
  7. Three AA batteries
 
@@ -24,31 +24,33 @@ Use an Electric Imp to collect temperature, humidity, accelerometer and light se
 
 ### Step 2 - Create a Watson IoT Service
 
-Open [Bluemix IoT](https://new-console.ng.bluemix.net/catalog/?category=iot) page in your web browser and log into your Bluemix account.
+Open [IBM Cloud IoT](https://cloud.ibm.com/catalog?category=iot) page in your web browser and log into your IBM account.
 
-**Note:** If you have not created an organization, a pop up will walk you through the steps for creating an organization and space. When you are done click [this link](https://new-console.ng.bluemix.net/catalog/?category=iot) to get back to Bluemix IoT page.
+**Note:** If you have not created an organization, a pop up will walk you through the steps for creating an organization and space. When you are done click [this link](https://cloud.ibm.com/catalog?category=iot) to get back to Catalog IoT page.
 
-On the [Bluemix IoT](https://new-console.ng.bluemix.net/catalog/?category=iot) page select **Internet of Things Platform** to open the form to create a project.
+On the [IBM Cloud IoT Catalog](https://cloud.ibm.com/catalog?category=iot) page select **Internet of Things Platform** to open the form to create a project.
 
-![Bluemix IoT page](http://i.imgur.com/nQGtohl.png)
+![IBM Cloud IoT page](imgs/IBM_IoT_Catalog.png)
 
 To *Create a Project* enter the following information
 
-1. *Service Name*: leave default or give it an identifing name like *Electric Imp Smart Refrigerator*
-2. *Connected to*: leave set to **Leave Unbound**
-3. *Pricing Plan*: you can leave set to **Free**
-4. Scroll to the bottom and click **Create**
+1. Under *Select a region* leave the region auto-selected for you or select the region closest to your location
+1. Under *Select a pricing plan* you can leave set to the free **Lite** plan (Please note you can only have ONE Lite plan application created at a time) 
+1. Under *Configure your resource* you can leave the defaults or you can update the *Service Name* to give it an identifying name like *Electric Imp Smart Refrigerator*, no need to update tags or 
+1. When you are done, in the right side bar **Create**
 
-Next we need to launch the service dashboard, so after *creating a project* click **Launch** button.
+![IBM Cloud Platform Settings](imgs/IBM_IoT_Platform_config_form.png)
 
-![Bluemix Project page](http://i.imgur.com/YjHg0bq.png)
+After a few seconds you should be redirected to your newly created IoT resource's home page. From that there click the *Launch* button to open a tab for this resource's dashboards.
 
-Once you are in the service dashboard, there are 3 items you need to copy down.  These will need to be pasted into the code during **Step 4**, your **Organization ID**, **API Key**, and **Authentication Token**.
+![IBM Cloud Project page](imgs/IBM_Resource_List.png)
+
+Once you are in the service dashboard, there are 3 items you need to copy down. These will need to be pasted into the code during **Step 4**, your **Organization ID**, **API Key**, and **Authentication Token**.
 
 1. Locating your **Organization ID**
 
   Select *Settings* tab in the sidebar
-  ![Settings Sidebar](http://i.imgur.com/gWy6kSH.png)
+  ![Settings Sidebar](imgs/IBM_Dash_Settings.png)
 
   Under *General* make a note or you **Organization ID**
   ![Org ID](http://i.imgur.com/ubFJtEH.png)
@@ -58,11 +60,19 @@ Once you are in the service dashboard, there are 3 items you need to copy down. 
   Select *Apps* tab in the sidebar. Make sure you are in the **API Keys** tab, then click the **+ Generate API Key** button.
   ![API Key Tab](http://i.imgur.com/Fc36kQk.png)
 
+  In the Generate API Key form: 
+  - Enter a description for your API key, ie *Imp Devices*
+  - Click **Next**
+  ![Settings Sidebar](imgs/IBM_Dash_API_Key_Pt1.png)
+  - Grant the API key permissions, by selecting *Standard Application* from the dropdown
+  - Click **Generate Key**
+  ![Settings Sidebar](imgs/IBM_Dash_API_Key_Pt2.png)
+
   Make note of your **API Key** & **Authentication Token**
   ![Generate API Key](http://i.imgur.com/I3Ta14z.png)
   *Note*: The **Authentication Token** can only be viewed when generating an API Key, you must store a copy of the **Authentication Token** before leaving this screen.
 
-  When you have copied down your key and token, click **Finish** to create keys.
+  When you have copied down your key and token you can proceed to the next steps.
 
 ### Step 3 - Connect your Electric Imp to the Internet
 
@@ -91,27 +101,19 @@ For more information on BlinkUp visit the Electric Imp [Dev Center](https://elec
 
 ### Step 4 - Connect your Electric Imp to Watson IoT
 
-In your web browser log into the [Electric Imp IDE](https://ide.electricimp.com/login) using your Electric Imp developer account.
+In your web browser log into the [Electric Imp IDE](https://impcentral.electricimp.com/login) using your Electric Imp developer account.
 
-Click the **+** button to create a new model
-
-![Empty IDE](http://i.imgur.com/Ui7w8eG.png)
-
-In the pop-up enter the following information:
-
-1. A name for your code model (ie Smart Refrigerator)
-2. Select the checkbox next to your device ID, this assigns your device to this code model
-3. Click **Create Model** button
+Create a new Product and Device Group, giving them names like *Smart Refrigerator* and *IBM integration*. Then assign your device to the Device Group. See the [getting started guide](https://developer.electricimp.com/gettingstarted/explorer/helloworld) in the Electric Imp dev center for details. When you are ready to enter code into the impCentral IDE return to these instructions. 
 
 To get you started we have some example code for an IBM Watson Smart Refrigerator.  This code can be found in Electric Imp's [IBMWatson Github repository](https://github.com/electricimp/IBMWatson/tree/master/Examples/SmartRefrigerator).
 
-Copy and paste the IBM Watson Smart Refrigerator example code into the agent and device coding windows.  The agent.nut file should go in the agent coding window, the device.nut file in the device coding window.
+Copy and paste the IBM Watson Smart Refrigerator example code into the agent and device coding windows. The agent.nut file should go in the agent coding window, the device.nut file in the device coding window.
 
 ![IDE code windows](http://i.imgur.com/yiCmQZu.png)
 
 Scroll the the bottom of the agent code to find *Watson API Auth Keys* variables. Enter your **API Key**, **Authentication Token**, and **Organization ID** from **Step 2** into the corresponding variables.
 
-Click **Build and Run** to save and launch the code
+Click **Build and Force Restart** to save and launch the code on your device.
 
 ![IDE with code](http://i.imgur.com/zlJaIaw.png)
 
@@ -121,83 +123,88 @@ Click **Build and Run** to save and launch the code
 #### Create Board
 
 Open up your IBM Watson IoT service dashboard, use the sidebar to navigate to **Boards**. Then click **+ Create New Board** button.
-![Boards Sidebar](http://i.imgur.com/qaratc1.png)
+![Boards Sidebar](imgs/IBM_Dash_Create_Board.png)
 
 1. Enter Board Name (ie Refrigerator Monitor)
 2. Enter a Description (optional)
 3. Select **Make this board my landing page**
 4. Select **Favorite**
 5. Click **Next**
-6. Click **Create**
+6. Add Users if desired, then Click **Create**
 
 Select the Board you just created from **Your Boards** section.
-![Select Card](http://i.imgur.com/IbPVmFX.png)
+![Select Card](imgs/IBM_Dash_Select_Board.png)
 
 **Note**: To complete this step we need a device to be configured in Watson. An Imp running the example code will create a device programatically, so if you have not completed **Step 4 - Connect your Electric Imp to Watson**, please do so before continuing.
 
+Once your device is connected confirm it is sending data to IBM. Navigate to the devices tab in the sidebar. Under *Browse* all devices will be listed. Find the device that matches your device ID. Select it and look under *Recent Events* to confirm your device is sending data.
+
+![Show Device and Events](imgs/IBM_Dash_Browse_Devices.png)
+
 #### Create Cards
 
-We are going to add a couple different types of cards to our board, a *realitime chart* to track the temperature and humidity of the refrigerator, two *gauges* to show the current temperature and humidity, and a *value* card to show the current status of the refrigerator door.
+We are going to add a couple different types of cards to our board, a *Line chart* to track the temperature and humidity of the refrigerator, two *gauges* to show the current temperature and humidity, and a *value* card to show the current status of the refrigerator door.
 
 To add new cards follow the step by step instructions below.
 
-![New Card](http://i.imgur.com/nhfPDNW.png)
+![New Card](imgs/IBM_Dash_New_Card.png)
 
-
-###### Realtime chart
+##### Line chart
 Click **+Add New Card** button
 
-1. Scoll down to **Devices** section and select **Realtime Chart**
+1. Under **Devices** section and select **Line chart**
 2. Select your device and click **Next**
 3. Click **Connect new data set**
-  - *Name* : Enter **Temperature**
-  - *Event* : select **RefrigeratorMonitor**
-  - *Property* : select **temperature**
-  - *Type* : select **Number**
-  - *Unit* : select **°C**
+    - *Event* : select **RefrigeratorMonitor**
+    - *Property* : select **temperature**
+    - *Name* : Enter **Temperature**
+    - *Type* : select **Number**
+    - *Unit* : select **°C**
 4. Click **Connect new data set**
-  - *Name* : Enter **Humidity**
-  - *Event* : select **RefrigeratorMonitor**
-  - *Property* : select **humidity**
-  - *Type* : select **Number**
-  - *Unit* : select **%**
+    - *Event* : select **RefrigeratorMonitor**
+    - *Property* : select **humidity**
+    - *Name* : Enter **Humidity**
+    - *Type* : select **Number**
+    - *Unit* : select **%**
 5. Click **Next**
 6. Under *Settings* select **XL** and click **Next**
-7. Enter a *Title* and *Descrtiption* (optional)
+7. Enter a *Title* and *Description* (optional)
 8. Select a *Color scheme* (optional)
 9. Click **Submit**
 
-###### Temperature gauge
+##### Temperature gauge
+
 Click **+Add New Card** button
 
-1. Scoll down to **Devices** section click *show more* and select **Gauge**
+1. Under **Devices** section select **Gauge**
 2. Select your device and click **Next**
 3. Click **Connect new data set**
-  - *Name* : Enter **Temperature**
-  - *Event* : select **RefrigeratorMonitor**
-  - *Property* : select **temperature**
-  - *Type* : select **Number**
-  - *Unit* : select **°C**
+    - *Event* : select **RefrigeratorMonitor**
+    - *Property* : select **temperature**
+    - *Name* : Enter **Temperature**
+    - *Type* : select **Number**
+    - *Unit* : select **°C**
 4. Click **Next**
 5. Under *Settings* select **M** and click **Next**
-6. Enter a *Title* and *Descrtiption* (optional)
+6. Enter a *Title* and *Description* (optional)
 7. Select a *Color scheme* (optional)
 8. Click **Submit**
 
-###### Humidity gauge
+##### Humidity gauge
 Click **+Add New Card** button. Then repeat *Create Temperature gauge* steps, but replace step 3 with step below.
 
 3. Click **Connect new data set**
-  - *Name* : Enter **Humidity**
   - *Event* : select **RefrigeratorMonitor**
   - *Property* : select **humidity**
+  - *Name* : Enter **Humidity**
   - *Type* : select **Number**
   - *Unit* : select **%**
 
-###### Door gauge
+##### Door gauge
+
 Click **+Add New Card** button
 
-1. Scoll down to **Devices** section click *show more* and select **Value**
+1. Under **Devices** section select **Value**
 2. Select your device and click **Next**
 3. Click **Connect new data set**
   - *Name* : Enter **Door Status**
@@ -206,12 +213,12 @@ Click **+Add New Card** button
   - *Type* : select **text**
 4. Click **Next**
 5. Under *Settings* select **M** and click **Next**
-6. Enter a *Title* and *Descrtiption* (optional)
+6. Enter a *Title* and *Description* (optional)
 7. Select a *Color scheme* (optional)
 8. Click **Submit**
 
 Your final dashboard should look like this:
-![Dashboard](http://i.imgur.com/jyUMQJC.png)
+![Dashboard](imgs/IBM_Dashboard.png)
 
 ### 6.  Install the Imp in your Refrigerator
 
@@ -223,5 +230,5 @@ Open your refrigerator and place the Imp on a shelf in the door.
 
 Your refrigerator is now connected to the internet. As you begin to gather data for your refrigerator you should adjust the static variables in your device SmartFridgeApp class to further customize your integration.
 
-* Adjust the temperature, humidity, and lighting thresholds to optimize for your frigde
+* Adjust the temperature, humidity, and lighting thresholds to optimize for your refrigerator
 * Adjust the reading and reporting times to optimize power usage
